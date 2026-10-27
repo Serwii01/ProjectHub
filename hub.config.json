@@ -4,7 +4,7 @@
     "hideForks": true,
     "ignore": ["Serwii01", "ProjectHub"]
   },
-  "exclude": ["Obsidian Vault", "ProjectHub"],
+  "exclude": ["Obsidian Vault", "ProjectHub", "TFG"],
   "projects": {
     "GeoHub": { "repo": "geohub", "descripcion": "Hub de juegos de geografía (13 juegos, reto diario, examen)", "prioridad": "media" },
     "PlanifyPlus": { "repo": "PlanifyPlus2", "descripcion": "Actividades comunitarias (DAM, en equipo): Laravel 12 + Angular 21", "prioridad": "baja" },
