@@ -1,0 +1,15 @@
+{
+  "name": "project-hub",
+  "version": "1.0.0",
+  "scripts": {
+    "scan": "node scan.mjs",
+    "dashboard": "node dashboard.mjs --open",
+    "mcp": "node mcp-server.mjs"
+  },
+  "description": "Centro de control de mis proyectos para Claude Code",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.32.2",
+    "zod": "^4.6.7"
+  },
+  "type": "module"
+}

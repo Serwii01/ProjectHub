@@ -1,0 +1,5 @@
+node_modules/
+
+# Generados por scan.mjs en cada escaneo
+projects.json
+PROJECTS.md

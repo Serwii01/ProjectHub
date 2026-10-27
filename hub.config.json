@@ -1,0 +1,15 @@
+{
+  "roots": [
+    "C:/Users/2DAW-sfermor598/Documents",
+    "C:/Users/2DAW-sfermor598/Documents/Proyectos"
+  ],
+  "exclude": ["Obsidian Vault", "ProjectHub"],
+  "projects": {
+    "GeoHub": { "descripcion": "Hub de juegos de geografía (13 juegos, reto diario, examen)", "prioridad": "media" },
+    "PlanifyPlus": { "descripcion": "Actividades comunitarias (DAM, en equipo): Laravel 12 + Angular 21", "prioridad": "baja" },
+    "CreaFlow": { "descripcion": "Lamo Studio: gestión de proyectos creativos, MVP sin backend", "prioridad": "media" },
+    "PrestArte": { "descripcion": "TFG: préstamo de obras de arte entre coleccionistas y museos", "prioridad": "alta" },
+    "ropa": { "descripcion": "PWA de inventario de armario y combinaciones", "prioridad": "media" },
+    "rukujack": { "descripcion": "Blackjack 3D multijugador P2P en el navegador", "prioridad": "baja" }
+  }
+}

@@ -1,0 +1,555 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ProjectHub</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='8' fill='%234f46e5'/><path d='M9 11h14M9 16h14M9 21h9' stroke='white' stroke-width='2.5' stroke-linecap='round'/></svg>">
+<style>
+  :root {
+    --bg: #f6f7f9; --surface: #ffffff; --surface-2: #f1f3f6; --border: #e3e6eb;
+    --text: #15181d; --muted: #646b76; --faint: #9aa1ab;
+    --accent: #4f46e5; --accent-soft: #eef0ff; --accent-text: #3f37c9;
+    --ok: #15803d; --ok-soft: #e7f6ec; --warn: #b45309; --warn-soft: #fdf3e2;
+    --danger: #b91c1c; --danger-soft: #fdecec; --idle: #8b929c;
+    --shadow: 0 1px 2px rgba(16,24,40,.04), 0 1px 3px rgba(16,24,40,.06);
+    --shadow-lg: 0 12px 40px rgba(16,24,40,.18);
+    --radius: 12px;
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0e1013; --surface: #171a1f; --surface-2: #1e2228; --border: #2a2f37;
+      --text: #e8eaed; --muted: #a0a7b2; --faint: #6c7480;
+      --accent: #818cf8; --accent-soft: #23264a; --accent-text: #a5b0ff;
+      --ok: #4ade80; --ok-soft: #12291b; --warn: #fbbf24; --warn-soft: #2e2410;
+      --danger: #f87171; --danger-soft: #2f1414; --idle: #6c7480;
+      --shadow: 0 1px 2px rgba(0,0,0,.3); --shadow-lg: 0 12px 40px rgba(0,0,0,.5);
+      color-scheme: dark;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 14px/1.5 "Segoe UI", system-ui, -apple-system, sans-serif; }
+  button, input, select, textarea { font: inherit; color: inherit; }
+  button { cursor: pointer; }
+  .wrap { max-width: 1240px; margin: 0 auto; padding: 0 24px 48px; }
+
+  /* Cabecera */
+  header { position: sticky; top: 0; z-index: 5; background: color-mix(in srgb, var(--bg) 88%, transparent); backdrop-filter: blur(8px); border-bottom: 1px solid var(--border); }
+  header .wrap { display: flex; align-items: center; gap: 16px; padding-top: 14px; padding-bottom: 14px; }
+  .brand { display: flex; align-items: center; gap: 10px; font-weight: 650; font-size: 17px; margin-right: auto; }
+  .brand .logo { width: 28px; height: 28px; border-radius: 8px; background: var(--accent); display: grid; place-items: center; }
+  .search { position: relative; flex: 0 1 340px; min-width: 0; }
+  .search input { width: 100%; padding: 8px 12px 8px 34px; border: 1px solid var(--border); border-radius: 9px; background: var(--surface); outline: none; }
+  .search input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+  .search svg { position: absolute; left: 11px; top: 50%; transform: translateY(-50%); color: var(--faint); }
+  .kbd { position: absolute; right: 9px; top: 50%; transform: translateY(-50%); font-size: 11px; color: var(--faint); border: 1px solid var(--border); border-radius: 5px; padding: 0 5px; }
+
+  .btn { display: inline-flex; align-items: center; gap: 6px; padding: 7px 12px; border-radius: 8px; border: 1px solid var(--border); background: var(--surface); font-weight: 500; white-space: nowrap; transition: background .12s, border-color .12s; }
+  .btn:hover { background: var(--surface-2); }
+  .btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .btn.primary:hover { filter: brightness(1.08); }
+  .btn.ghost { border-color: transparent; background: transparent; color: var(--muted); }
+  .btn.ghost:hover { background: var(--surface-2); color: var(--text); }
+  .btn.sm { padding: 5px 9px; font-size: 13px; }
+  .btn svg { flex: none; }
+  .spin svg { animation: spin .8s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  h1 { font-size: 22px; margin: 28px 0 4px; font-weight: 650; letter-spacing: -.01em; }
+  .sub { color: var(--muted); margin: 0 0 20px; }
+
+  /* Resumen */
+  .stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 20px; }
+  .stat { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 14px 16px; text-align: left; box-shadow: var(--shadow); transition: border-color .12s, transform .12s; }
+  .stat:hover { border-color: var(--accent); }
+  .stat.active { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+  .stat .n { font-size: 26px; font-weight: 650; line-height: 1.1; }
+  .stat .l { color: var(--muted); font-size: 13px; }
+
+  /* Recomendado */
+  .focus { display: flex; gap: 20px; align-items: center; background: linear-gradient(135deg, var(--accent-soft), var(--surface) 70%); border: 1px solid var(--border); border-radius: var(--radius); padding: 18px 20px; margin-bottom: 24px; box-shadow: var(--shadow); }
+  .focus .tag { font-size: 12px; font-weight: 600; color: var(--accent-text); text-transform: uppercase; letter-spacing: .05em; }
+  .focus h2 { margin: 2px 0 2px; font-size: 18px; }
+  .focus p { margin: 0; color: var(--muted); }
+  .focus .actions { margin-left: auto; display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
+
+  /* Filtros */
+  .toolbar { display: flex; align-items: center; gap: 8px; margin-bottom: 14px; flex-wrap: wrap; }
+  .chip { padding: 5px 12px; border-radius: 999px; border: 1px solid var(--border); background: var(--surface); color: var(--muted); font-size: 13px; }
+  .chip.active { background: var(--text); color: var(--bg); border-color: var(--text); }
+  .toolbar select { margin-left: auto; padding: 5px 8px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); }
+
+  /* Tarjetas */
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 14px; }
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px; display: flex; flex-direction: column; gap: 10px; box-shadow: var(--shadow); cursor: pointer; transition: border-color .12s, box-shadow .12s; }
+  .card:hover { border-color: color-mix(in srgb, var(--accent) 50%, var(--border)); box-shadow: var(--shadow-lg); }
+  .card-top { display: flex; align-items: flex-start; gap: 10px; }
+  .card h3 { margin: 0; font-size: 16px; font-weight: 650; }
+  .card .desc { color: var(--muted); font-size: 13px; margin: 2px 0 0; }
+  .prio { margin-left: auto; flex: none; font-size: 12px; font-weight: 600; padding: 2px 9px; border-radius: 999px; }
+  .prio.alta { background: var(--danger-soft); color: var(--danger); }
+  .prio.media { background: var(--warn-soft); color: var(--warn); }
+  .prio.baja, .prio.archivado { background: var(--surface-2); color: var(--muted); }
+  .tags { display: flex; flex-wrap: wrap; gap: 5px; }
+  .tag-s { font-size: 12px; padding: 1px 8px; border-radius: 6px; background: var(--surface-2); color: var(--muted); }
+  .meta { display: flex; align-items: center; gap: 12px; font-size: 13px; color: var(--muted); flex-wrap: wrap; }
+  .dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; margin-right: 6px; }
+  .dot.fresh { background: var(--ok); } .dot.mid { background: var(--warn); } .dot.old { background: var(--idle); }
+  .branch { font-family: ui-monospace, Consolas, monospace; font-size: 12px; }
+  .badges { display: flex; gap: 6px; flex-wrap: wrap; }
+  .badge { font-size: 12px; font-weight: 500; padding: 2px 8px; border-radius: 6px; }
+  .badge.warn { background: var(--warn-soft); color: var(--warn); }
+  .badge.danger { background: var(--danger-soft); color: var(--danger); }
+  .badge.ok { background: var(--ok-soft); color: var(--ok); }
+  .next { background: var(--surface-2); border-radius: 9px; padding: 9px 11px; font-size: 13px; }
+  .next .lbl { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .05em; color: var(--faint); }
+  .next .more { color: var(--faint); font-size: 12px; }
+  .card-actions { display: flex; gap: 6px; margin-top: auto; padding-top: 2px; }
+  .empty { text-align: center; color: var(--muted); padding: 48px 0; }
+
+  /* Panel lateral */
+  .scrim { position: fixed; inset: 0; background: rgba(10,12,16,.35); opacity: 0; pointer-events: none; transition: opacity .18s; z-index: 10; }
+  .scrim.open { opacity: 1; pointer-events: auto; }
+  .drawer { position: fixed; top: 0; right: 0; height: 100%; width: min(640px, 100%); background: var(--surface); border-left: 1px solid var(--border); box-shadow: var(--shadow-lg); transform: translateX(100%); transition: transform .22s ease; z-index: 11; display: flex; flex-direction: column; }
+  .drawer.open { transform: none; }
+  .d-head { padding: 18px 22px 0; border-bottom: 1px solid var(--border); }
+  .d-title { display: flex; align-items: center; gap: 10px; }
+  .d-title h2 { margin: 0; font-size: 20px; }
+  .d-title .close { margin-left: auto; }
+  .d-path { font-family: ui-monospace, Consolas, monospace; font-size: 12px; color: var(--faint); margin: 2px 0 12px; word-break: break-all; }
+  .d-actions { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 14px; }
+  .tabs { display: flex; gap: 2px; }
+  .tab { padding: 8px 12px; border: 0; background: none; color: var(--muted); border-bottom: 2px solid transparent; font-weight: 500; }
+  .tab.active { color: var(--text); border-bottom-color: var(--accent); }
+  .d-body { padding: 20px 22px 40px; overflow-y: auto; flex: 1; }
+  .section { margin-bottom: 22px; }
+  .section > .h { font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: .05em; color: var(--faint); margin-bottom: 8px; display: flex; align-items: center; gap: 8px; }
+  .estado { font-size: 14px; }
+  .estado p { margin: 0; }
+  .steps { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
+  .steps li { display: flex; gap: 10px; align-items: flex-start; padding: 7px 8px; border-radius: 8px; }
+  .steps li:hover { background: var(--surface-2); }
+  .steps input { margin-top: 3px; width: 16px; height: 16px; accent-color: var(--accent); flex: none; cursor: pointer; }
+  .steps li.done span { text-decoration: line-through; color: var(--faint); }
+  .add-step { display: flex; gap: 8px; margin-top: 8px; }
+  .add-step input { flex: 1; padding: 7px 10px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); outline: none; }
+  .add-step input:focus { border-color: var(--accent); }
+  .row { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; }
+  .field { display: flex; flex-direction: column; gap: 4px; font-size: 13px; color: var(--muted); }
+  .field select, .field input { padding: 6px 9px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); color: var(--text); }
+  .field input { width: 340px; max-width: 100%; }
+  pre, code { font-family: ui-monospace, Consolas, monospace; font-size: 12.5px; }
+  pre { background: var(--surface-2); border-radius: 9px; padding: 12px; overflow-x: auto; margin: 0; white-space: pre-wrap; }
+  .log { list-style: none; padding: 0; margin: 0; }
+  .log li { display: flex; gap: 10px; padding: 6px 0; border-bottom: 1px solid var(--border); font-size: 13px; }
+  .log .h { font-family: ui-monospace, Consolas, monospace; color: var(--accent-text); font-size: 12px; }
+  .log .d { color: var(--faint); white-space: nowrap; font-size: 12px; }
+  .md h1, .md h2, .md h3 { font-size: 15px; margin: 18px 0 6px; }
+  .md h1 { font-size: 17px; margin-top: 0; }
+  .md p, .md ul { margin: 6px 0; }
+  .md ul { padding-left: 20px; }
+  .md code { background: var(--surface-2); padding: 1px 5px; border-radius: 4px; }
+  .md pre code { background: none; padding: 0; }
+  .md table { border-collapse: collapse; font-size: 13px; margin: 8px 0; }
+  .md td, .md th { border: 1px solid var(--border); padding: 4px 8px; text-align: left; }
+  .md blockquote { margin: 8px 0; padding: 4px 12px; border-left: 3px solid var(--border); color: var(--muted); }
+  .hint { color: var(--muted); font-size: 13px; }
+  .claude-box { background: var(--accent-soft); border-radius: 10px; padding: 12px 14px; display: flex; align-items: center; gap: 12px; }
+  .claude-box code { font-size: 14px; color: var(--accent-text); font-weight: 600; }
+
+  .toast { position: fixed; bottom: 22px; left: 50%; transform: translate(-50%, 20px); background: var(--text); color: var(--bg); padding: 9px 16px; border-radius: 9px; font-size: 13px; opacity: 0; transition: opacity .18s, transform .18s; z-index: 20; pointer-events: none; }
+  .toast.show { opacity: 1; transform: translate(-50%, 0); }
+
+  @media (max-width: 760px) {
+    .wrap { padding: 0 16px 40px; }
+    .stats { grid-template-columns: repeat(2, 1fr); }
+    .focus { flex-direction: column; align-items: flex-start; }
+    .focus .actions { margin-left: 0; justify-content: flex-start; }
+    .grid { grid-template-columns: 1fr; }
+    .kbd { display: none; }
+    .brand span { display: none; }
+    .brand { margin-right: 0; }
+    .search { flex: 1 1 auto; }
+    #refresh .lbl { display: none; }
+  }
+</style>
+</head>
+<body>
+<header>
+  <div class="wrap">
+    <div class="brand">
+      <div class="logo"><svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M3 4.5h10M3 8h10M3 11.5h6" stroke="#fff" stroke-width="1.8" stroke-linecap="round"/></svg></div>
+      <span>ProjectHub</span>
+    </div>
+    <label class="search">
+      <svg width="15" height="15" viewBox="0 0 16 16" fill="none"><circle cx="7" cy="7" r="5" stroke="currentColor" stroke-width="1.6"/><path d="m11 11 3 3" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+      <input id="q" placeholder="Buscar proyecto, tecnología…" autocomplete="off">
+      <span class="kbd">/</span>
+    </label>
+    <button class="btn" id="refresh" title="Volver a escanear los repos">
+      <svg width="15" height="15" viewBox="0 0 16 16" fill="none"><path d="M13.5 8a5.5 5.5 0 1 1-1.6-3.9M13.5 2.5v3h-3" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      <span class="lbl">Actualizar</span>
+    </button>
+  </div>
+</header>
+
+<main class="wrap">
+  <h1 id="greeting">Mis proyectos</h1>
+  <p class="sub" id="updated">Cargando…</p>
+
+  <div class="stats" id="stats"></div>
+  <div id="focus"></div>
+
+  <div class="toolbar">
+    <div id="chips" style="display:flex;gap:6px;flex-wrap:wrap"></div>
+    <select id="sort" aria-label="Ordenar">
+      <option value="activity">Más recientes</option>
+      <option value="priority">Por prioridad</option>
+      <option value="name">Por nombre</option>
+    </select>
+  </div>
+  <div class="grid" id="grid"></div>
+</main>
+
+<div class="scrim" id="scrim"></div>
+<aside class="drawer" id="drawer" aria-hidden="true"></aside>
+<div class="toast" id="toast"></div>
+
+<script>
+const $ = (s, el = document) => el.querySelector(s);
+const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const PRIO = { alta: 0, media: 1, baja: 2, archivado: 3 };
+
+const state = { projects: [], generatedAt: null, filter: "all", query: "", sort: "activity", open: null, tab: "resumen", detail: null };
+
+// ---------- API ----------
+async function api(path, opts = {}) {
+  const res = await fetch("/api/" + path, { ...opts, headers: { "Content-Type": "application/json", "X-Hub": "1", ...opts.headers } });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || res.statusText);
+  return data;
+}
+const send = (path, method, body) => api(path, { method, body: JSON.stringify(body || {}) });
+
+async function load({ spin = false } = {}) {
+  const btn = $("#refresh");
+  if (spin) btn.classList.add("spin");
+  try {
+    const data = await api("projects");
+    state.projects = data.projects;
+    state.generatedAt = data.generatedAt;
+    render();
+    if (state.open) openProject(state.open, { keepTab: true });
+  } catch (e) {
+    toast("No se pudo cargar: " + e.message);
+  } finally {
+    btn.classList.remove("spin");
+  }
+}
+
+// ---------- Utilidades ----------
+function toast(msg) {
+  const t = $("#toast");
+  t.textContent = msg;
+  t.classList.add("show");
+  clearTimeout(t._h);
+  t._h = setTimeout(() => t.classList.remove("show"), 2200);
+}
+async function copy(text, msg) {
+  try { await navigator.clipboard.writeText(text); toast(msg || "Copiado"); } catch { toast("No se pudo copiar"); }
+}
+const ago = (d) => d === null ? "sin commits" : d === 0 ? "hoy" : d === 1 ? "ayer" : d < 30 ? `hace ${d} días` : d < 365 ? `hace ${Math.round(d / 30)} ${Math.round(d / 30) === 1 ? "mes" : "meses"}` : "hace más de un año";
+const fresh = (d) => d === null || d > 30 ? "old" : d > 7 ? "mid" : "fresh";
+const pendingPush = (p) => p.ahead > 0 || p.uncommitted > 0;
+const inactive = (p) => (p.lastCommit.daysAgo ?? 999) > 30;
+
+function badges(p) {
+  const b = [];
+  if (p.uncommitted) b.push(`<span class="badge warn">${p.uncommitted} sin commit</span>`);
+  if (p.ahead) b.push(`<span class="badge warn">${p.ahead} sin subir</span>`);
+  if (p.behind) b.push(`<span class="badge danger">${p.behind} por bajar</span>`);
+  if (!p.hasStatusMd) b.push(`<span class="badge danger">sin STATUS.md</span>`);
+  if (!b.length) b.push(`<span class="badge ok">al día</span>`);
+  return b.join("");
+}
+
+// Proyecto recomendado: prioridad alta primero, con siguiente paso, y el más reciente
+function recommended() {
+  return [...state.projects]
+    .filter((p) => p.prioridad !== "archivado" && p.nextSteps.length)
+    .sort((a, b) => (PRIO[a.prioridad] ?? 2) - (PRIO[b.prioridad] ?? 2) || (a.lastCommit.daysAgo ?? 999) - (b.lastCommit.daysAgo ?? 999))[0];
+}
+
+const ICON = {
+  code: '<svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="m5.5 4.5-3.5 3.5 3.5 3.5M10.5 4.5l3.5 3.5-3.5 3.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+  folder: '<svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M2 4.5c0-.6.4-1 1-1h3l1.5 1.5H13c.6 0 1 .4 1 1V12c0 .6-.4 1-1 1H3c-.6 0-1-.4-1-1V4.5Z" stroke="currentColor" stroke-width="1.5"/></svg>',
+  term: '<svg width="14" height="14" viewBox="0 0 16 16" fill="none"><rect x="1.5" y="2.5" width="13" height="11" rx="2" stroke="currentColor" stroke-width="1.5"/><path d="m4.5 6 2 2-2 2M8.5 10.5h3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+  claude: '<svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M8 1.5v3M8 11.5v3M1.5 8h3M11.5 8h3M3.4 3.4l2.1 2.1M10.5 10.5l2.1 2.1M3.4 12.6l2.1-2.1M10.5 5.5l2.1-2.1" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>',
+  gh: '<svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><path d="M8 .5a7.5 7.5 0 0 0-2.4 14.6c.4.1.5-.2.5-.4v-1.3c-2.1.5-2.5-1-2.5-1-.4-.9-.9-1.1-.9-1.1-.7-.5.1-.5.1-.5.8 0 1.2.8 1.2.8.7 1.2 1.8.8 2.2.6.1-.5.3-.8.5-1-1.7-.2-3.4-.8-3.4-3.7 0-.8.3-1.5.8-2-.1-.2-.4-1 .1-2 0 0 .6-.2 2.1.8a7 7 0 0 1 3.8 0c1.4-1 2.1-.8 2.1-.8.4 1 .2 1.8.1 2 .5.5.8 1.2.8 2 0 2.9-1.8 3.5-3.4 3.7.3.2.5.7.5 1.4v2.1c0 .2.1.5.5.4A7.5 7.5 0 0 0 8 .5Z"/></svg>',
+  x: '<svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="m4 4 8 8M12 4l-8 8" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>',
+};
+
+// ---------- Render principal ----------
+function render() {
+  const P = state.projects;
+  const h = new Date().getHours();
+  $("#greeting").textContent = (h < 13 ? "Buenos días" : h < 21 ? "Buenas tardes" : "Buenas noches") + " — tus proyectos";
+  $("#updated").textContent = `${P.length} proyectos · actualizado ${new Date(state.generatedAt).toLocaleTimeString("es-ES", { hour: "2-digit", minute: "2-digit" })}`;
+
+  const stats = [
+    { id: "all", n: P.length, l: "Proyectos" },
+    { id: "push", n: P.filter(pendingPush).length, l: "Con cambios sin subir" },
+    { id: "alta", n: P.filter((p) => p.prioridad === "alta").length, l: "Prioridad alta" },
+    { id: "inactive", n: P.filter(inactive).length, l: "Sin tocar +30 días" },
+  ];
+  $("#stats").innerHTML = stats.map((s) => `<button class="stat ${state.filter === s.id ? "active" : ""}" data-filter="${s.id}"><div class="n">${s.n}</div><div class="l">${s.l}</div></button>`).join("");
+
+  const r = recommended();
+  $("#focus").innerHTML = r ? `
+    <div class="focus">
+      <div>
+        <div class="tag">Para seguir ahora</div>
+        <h2>${esc(r.name)}</h2>
+        <p>${inlineMd(r.nextSteps[0])}</p>
+      </div>
+      <div class="actions">
+        <button class="btn primary" data-copy="/retomar ${esc(r.name)}">${ICON.claude} Copiar /retomar</button>
+        <button class="btn" data-open="vscode" data-p="${esc(r.name)}">${ICON.code} VS Code</button>
+        <button class="btn" data-detail="${esc(r.name)}">Ver detalles</button>
+      </div>
+    </div>` : "";
+
+  const chips = [["all", "Todos"], ["push", "Sin subir"], ["alta", "Prioridad alta"], ["inactive", "Inactivos"]];
+  $("#chips").innerHTML = chips.map(([id, l]) => `<button class="chip ${state.filter === id ? "active" : ""}" data-filter="${id}">${l}</button>`).join("");
+
+  const q = state.query.toLowerCase();
+  let list = P.filter((p) =>
+    state.filter === "push" ? pendingPush(p) :
+    state.filter === "alta" ? p.prioridad === "alta" :
+    state.filter === "inactive" ? inactive(p) : true);
+  if (q) list = list.filter((p) => [p.name, p.descripcion, p.stack.join(" "), p.nextSteps.join(" "), p.branch].join(" ").toLowerCase().includes(q));
+  list.sort(
+    state.sort === "name" ? (a, b) => a.name.localeCompare(b.name) :
+    state.sort === "priority" ? (a, b) => (PRIO[a.prioridad] ?? 2) - (PRIO[b.prioridad] ?? 2) || a.name.localeCompare(b.name) :
+    (a, b) => (b.lastCommit.date || "").localeCompare(a.lastCommit.date || ""));
+
+  $("#grid").innerHTML = list.length ? list.map(card).join("") : `<div class="empty">No hay proyectos que coincidan.</div>`;
+}
+
+function card(p) {
+  const extra = p.nextSteps.length - 1;
+  const more = extra > 0 ? `<div class="more">+${extra} ${extra === 1 ? "paso" : "pasos"} más</div>` : "";
+  return `
+  <article class="card" data-detail="${esc(p.name)}" tabindex="0">
+    <div class="card-top">
+      <div>
+        <h3>${esc(p.name)}</h3>
+        <p class="desc">${esc(p.descripcion || "Sin descripción")}</p>
+      </div>
+      <span class="prio ${esc(p.prioridad || "baja")}">${esc(p.prioridad || "—")}</span>
+    </div>
+    <div class="tags">${p.stack.map((s) => `<span class="tag-s">${esc(s)}</span>`).join("")}</div>
+    <div class="meta">
+      <span title="${esc(p.lastCommit.message)}"><span class="dot ${fresh(p.lastCommit.daysAgo)}"></span>${ago(p.lastCommit.daysAgo)}</span>
+      <span class="branch">⎇ ${esc(p.branch)}</span>
+    </div>
+    <div class="badges">${badges(p)}</div>
+    ${p.nextSteps.length ? `<div class="next"><div class="lbl">Siguiente paso</div>${inlineMd(p.nextSteps[0])}${more}</div>` : ""}
+    <div class="card-actions">
+      <button class="btn sm" data-copy="/retomar ${esc(p.name)}" title="Copia el comando para pegarlo en Claude Code">${ICON.claude} /retomar</button>
+      <button class="btn sm ghost" data-open="vscode" data-p="${esc(p.name)}" title="Abrir en VS Code">${ICON.code}</button>
+      <button class="btn sm ghost" data-open="explorer" data-p="${esc(p.name)}" title="Abrir carpeta">${ICON.folder}</button>
+      <button class="btn sm ghost" data-open="terminal" data-p="${esc(p.name)}" title="Abrir terminal aquí">${ICON.term}</button>
+      ${p.remote ? `<button class="btn sm ghost" data-open="github" data-p="${esc(p.name)}" title="Abrir en GitHub">${ICON.gh}</button>` : ""}
+    </div>
+  </article>`;
+}
+
+// ---------- Panel de detalle ----------
+async function openProject(name, { keepTab = false } = {}) {
+  state.open = name;
+  if (!keepTab) state.tab = "resumen";
+  $("#scrim").classList.add("open");
+  const d = $("#drawer");
+  d.classList.add("open");
+  d.setAttribute("aria-hidden", "false");
+  if (!keepTab) d.innerHTML = `<div class="d-body hint">Cargando…</div>`;
+  try {
+    state.detail = await api("projects/" + encodeURIComponent(name));
+    renderDrawer();
+  } catch (e) {
+    d.innerHTML = `<div class="d-body">Error: ${esc(e.message)}</div>`;
+  }
+}
+
+function closeDrawer() {
+  state.open = null;
+  $("#scrim").classList.remove("open");
+  $("#drawer").classList.remove("open");
+  $("#drawer").setAttribute("aria-hidden", "true");
+}
+
+function parseSteps(md) {
+  const m = (md || "").match(/##\s*Siguientes pasos\s*\n([\s\S]*?)(\n##\s|$)/i);
+  if (!m) return [];
+  return m[1].split("\n").map((l) => l.match(/^\s*[-*]\s*(?:\[( |x|X)\]\s*)?(.*)$/)).filter((x) => x && x[2].trim()).map((x) => ({ done: x[1]?.toLowerCase() === "x", text: x[2].trim() }));
+}
+function section(md, name) {
+  const m = (md || "").match(new RegExp(`##\\s*${name}[^\\n]*\\n([\\s\\S]*?)(\\n##\\s|$)`, "i"));
+  return m ? m[1].replace(/<!--[\s\S]*?-->/g, "").trim() : "";
+}
+
+function renderDrawer() {
+  const { project: p, claudeMd, statusMd, git, todos } = state.detail;
+  const tabs = [["resumen", "Resumen"], ["git", "Git"], ["docs", "CLAUDE.md"], ["todos", `TODOs${todos.length ? ` (${todos.length})` : ""}`]];
+  $("#drawer").innerHTML = `
+    <div class="d-head">
+      <div class="d-title">
+        <h2>${esc(p.name)}</h2>
+        <span class="prio ${esc(p.prioridad || "baja")}">${esc(p.prioridad || "—")}</span>
+        <button class="btn ghost close" id="close" title="Cerrar (Esc)">${ICON.x}</button>
+      </div>
+      <div class="d-path">${esc(p.path)}</div>
+      <div class="d-actions">
+        <button class="btn sm primary" data-copy="/retomar ${esc(p.name)}">${ICON.claude} Copiar /retomar</button>
+        <button class="btn sm" data-open="vscode" data-p="${esc(p.name)}">${ICON.code} VS Code</button>
+        <button class="btn sm" data-open="explorer" data-p="${esc(p.name)}">${ICON.folder} Carpeta</button>
+        <button class="btn sm" data-open="terminal" data-p="${esc(p.name)}">${ICON.term} Terminal</button>
+        ${p.remote ? `<button class="btn sm" data-open="github" data-p="${esc(p.name)}">${ICON.gh} GitHub</button>` : ""}
+      </div>
+      <div class="tabs">${tabs.map(([id, l]) => `<button class="tab ${state.tab === id ? "active" : ""}" data-tab="${id}">${l}</button>`).join("")}</div>
+    </div>
+    <div class="d-body">${tabBody(state.tab, { p, claudeMd, statusMd, git, todos })}</div>`;
+}
+
+function tabBody(tab, { p, claudeMd, statusMd, git, todos }) {
+  if (tab === "resumen") {
+    if (!statusMd) return `<p class="hint">Este proyecto aún no tiene <code>STATUS.md</code>. Ábrelo con Claude Code y escribe <code>/retomar ${esc(p.name)}</code>: te ofrecerá crearlo analizando el repo.</p>`;
+    const steps = parseSteps(statusMd);
+    const sesiones = section(statusMd, "Última sesión");
+    return `
+      <div class="section"><div class="h">Estado actual</div><div class="estado md">${md(section(statusMd, "Estado actual")) || "—"}</div></div>
+      <div class="section">
+        <div class="h">Siguientes pasos</div>
+        <ul class="steps">${steps.map((s) => `<li class="${s.done ? "done" : ""}"><input type="checkbox" data-step="${esc(s.text)}" ${s.done ? "checked" : ""}><span>${inlineMd(s.text)}</span></li>`).join("") || `<li class="hint">No hay pasos.</li>`}</ul>
+        <form class="add-step" id="addStep"><input name="text" placeholder="Añadir un paso…" autocomplete="off"><button class="btn sm">Añadir</button></form>
+      </div>
+      <div class="section"><div class="h">Última sesión</div><div class="md">${md(sesiones.replace(/^###/gm, "####")) || '<p class="hint">—</p>'}</div></div>
+      <div class="section">
+        <div class="h">En el hub</div>
+        <div class="row">
+          <label class="field">Prioridad
+            <select id="prio">${["alta", "media", "baja", "archivado"].map((x) => `<option ${p.prioridad === x ? "selected" : ""}>${x}</option>`).join("")}</select>
+          </label>
+          <label class="field">Descripción <input id="desc" value="${esc(p.descripcion || "")}"></label>
+        </div>
+      </div>
+      <div class="section">
+        <div class="claude-box">${ICON.claude}<div>Para trabajar en él con Claude, pega <code>/retomar ${esc(p.name)}</code> en Claude Code. Al terminar, <code>/cerrar</code> actualiza esta ficha.</div></div>
+      </div>`;
+  }
+  if (tab === "git") {
+    const log = git.log.split("\n").filter(Boolean).map((l) => { const [h, d, ...m] = l.split(" "); return `<li><span class="h">${esc(h)}</span><span class="d">${esc(d)}</span><span>${esc(m.join(" "))}</span></li>`; }).join("");
+    return `
+      <div class="section"><div class="h">Estado</div><div class="badges">${badges(p)}</div></div>
+      ${git.status ? `<div class="section"><div class="h">Cambios sin commit</div><pre>${esc(git.status)}</pre></div>` : ""}
+      <div class="section"><div class="h">Últimos commits</div><ul class="log">${log}</ul></div>
+      <div class="section"><div class="h">Ramas</div><pre>${esc(git.branches)}</pre></div>`;
+  }
+  if (tab === "docs") return claudeMd ? `<div class="md">${md(claudeMd)}</div>` : `<p class="hint">Sin CLAUDE.md.</p>`;
+  if (tab === "todos") return todos.length ? `<pre>${esc(todos.join("\n"))}</pre>` : `<p class="hint">No hay TODO ni FIXME en el código.</p>`;
+}
+
+// Markdown mínimo: títulos, listas, código, tablas, citas, negrita, enlaces
+function inlineMd(s) {
+  return esc(s).replace(/`([^`]+)`/g, "<code>$1</code>").replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>").replace(/\[([^\]]+)\]\(([^)]+)\)/g, "$1");
+}
+function md(src) {
+  const out = [];
+  const lines = src.replace(/<!--[\s\S]*?-->/g, "").split("\n");
+  let i = 0;
+  while (i < lines.length) {
+    const l = lines[i];
+    if (/^```/.test(l)) {
+      const buf = [];
+      while (++i < lines.length && !/^```/.test(lines[i])) buf.push(lines[i]);
+      out.push(`<pre><code>${esc(buf.join("\n"))}</code></pre>`); i++; continue;
+    }
+    if (/^#{1,4}\s/.test(l)) { const n = l.match(/^#+/)[0].length; out.push(`<h${Math.min(n, 3)}>${inlineMd(l.replace(/^#+\s*/, ""))}</h${Math.min(n, 3)}>`); i++; continue; }
+    if (/^\|/.test(l)) {
+      const rows = [];
+      while (i < lines.length && /^\|/.test(lines[i])) { if (!/^\|[\s|:-]+\|$/.test(lines[i])) rows.push(lines[i]); i++; }
+      out.push(`<table>${rows.map((r, k) => `<tr>${r.split("|").slice(1, -1).map((c) => k ? `<td>${inlineMd(c.trim())}</td>` : `<th>${inlineMd(c.trim())}</th>`).join("")}</tr>`).join("")}</table>`); continue;
+    }
+    if (/^\s*[-*]\s/.test(l)) {
+      const items = [];
+      while (i < lines.length && /^\s*[-*]\s/.test(lines[i])) { items.push(lines[i].replace(/^\s*[-*]\s*(\[[ xX]\]\s*)?/, "")); i++; }
+      out.push(`<ul>${items.map((x) => `<li>${inlineMd(x)}</li>`).join("")}</ul>`); continue;
+    }
+    if (/^>\s?/.test(l)) { out.push(`<blockquote>${inlineMd(l.replace(/^>\s?/, ""))}</blockquote>`); i++; continue; }
+    if (l.trim()) out.push(`<p>${inlineMd(l)}</p>`);
+    i++;
+  }
+  return out.join("");
+}
+
+// ---------- Eventos ----------
+document.addEventListener("click", async (e) => {
+  const t = e.target.closest("[data-copy],[data-open],[data-filter],[data-tab],[data-detail],#close,#scrim");
+  if (!t) return;
+  if (t.id === "close" || t.id === "scrim") return closeDrawer();
+  if (t.dataset.copy) { e.stopPropagation(); return copy(t.dataset.copy, `Copiado: ${t.dataset.copy} — pégalo en Claude Code`); }
+  if (t.dataset.open) {
+    e.stopPropagation();
+    try { await send(`projects/${encodeURIComponent(t.dataset.p)}/open`, "POST", { app: t.dataset.open }); toast("Abriendo…"); } catch (err) { toast(err.message); }
+    return;
+  }
+  if (t.dataset.filter) { state.filter = state.filter === t.dataset.filter && t.dataset.filter !== "all" ? "all" : t.dataset.filter; return render(); }
+  if (t.dataset.tab) { state.tab = t.dataset.tab; return renderDrawer(); }
+  if (t.dataset.detail) return openProject(t.dataset.detail);
+});
+
+document.addEventListener("change", async (e) => {
+  const name = state.open;
+  if (!name) return;
+  try {
+    if (e.target.dataset.step) {
+      await send(`projects/${encodeURIComponent(name)}/steps`, "PATCH", { text: e.target.dataset.step, done: e.target.checked });
+      toast(e.target.checked ? "Paso completado" : "Paso reabierto");
+      await load();
+    } else if (e.target.id === "prio" || e.target.id === "desc") {
+      await send(`projects/${encodeURIComponent(name)}/info`, "PATCH", e.target.id === "prio" ? { prioridad: e.target.value } : { descripcion: e.target.value });
+      toast("Guardado");
+      await load();
+    }
+  } catch (err) { toast(err.message); }
+});
+
+document.addEventListener("submit", async (e) => {
+  if (e.target.id !== "addStep") return;
+  e.preventDefault();
+  const text = e.target.text.value.trim();
+  if (!text) return;
+  try {
+    await send(`projects/${encodeURIComponent(state.open)}/steps`, "POST", { text });
+    toast("Paso añadido");
+    await load();
+  } catch (err) { toast(err.message); }
+});
+
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape") closeDrawer();
+  if (e.key === "Enter" && e.target.classList?.contains("card")) openProject(e.target.dataset.detail);
+  if (e.key === "/" && !/INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName)) { e.preventDefault(); $("#q").focus(); }
+});
+$("#q").addEventListener("input", (e) => { state.query = e.target.value; render(); });
+$("#sort").addEventListener("change", (e) => { state.sort = e.target.value; render(); });
+$("#refresh").addEventListener("click", () => load({ spin: true }).then(() => toast("Proyectos actualizados")));
+// Refresca solo al volver a la pestaña (p. ej. después de trabajar con Claude)
+document.addEventListener("visibilitychange", () => { if (!document.hidden) load(); });
+
+load();
+</script>
+</body>
+</html>
