@@ -8,6 +8,7 @@ import { join } from "node:path";
 import { spawn } from "node:child_process";
 import {
   HUB, scanProjects, findProject, getContext, toggleStep, addStep, loadConfig, saveConfig,
+  remoteOnlyProjects, cloneProject, hideRepo, fetchProjects,
 } from "./lib/hub.mjs";
 
 const PORT = Number(process.env.PORT || 4310);
@@ -51,6 +52,15 @@ async function api(req, res, url) {
   if (req.method !== "GET" && req.headers["x-hub"] !== "1") return json(res, 403, { error: "Prohibido" });
 
   if (req.method === "GET" && resource === "projects" && !name) return json(res, 200, scanProjects());
+  if (req.method === "POST" && resource === "fetch") return json(res, 200, await fetchProjects());
+
+  // Repos de GitHub no clonados en este equipo
+  if (resource === "github") {
+    if (req.method === "GET" && !name) return json(res, 200, await remoteOnlyProjects({ force: url.searchParams.has("force") }));
+    if (req.method === "POST" && action === "clone") return json(res, 200, await cloneProject(name));
+    if (req.method === "POST" && action === "hide") return json(res, 200, hideRepo(name));
+    return json(res, 404, { error: "No encontrado" });
+  }
   if (resource !== "projects" || !name) return json(res, 404, { error: "No encontrado" });
 
   const project = findProject(name);

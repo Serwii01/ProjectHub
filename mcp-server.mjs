@@ -8,6 +8,7 @@ import { z } from "zod";
 import {
   scanProjects, findProject, getContext, listFiles, readProjectFile,
   searchProjects, gitSummary, updateStatus, loadConfig, saveConfig,
+  remoteOnlyProjects, cloneProject, fetchProjects,
 } from "./lib/hub.mjs";
 
 const server = new McpServer(
@@ -16,6 +17,8 @@ const server = new McpServer(
     instructions:
       "ProjectHub da acceso a todos los proyectos (repos) del usuario por su nombre, desde cualquier carpeta. " +
       "Empieza con list_projects para ver qué hay y en qué estado está cada uno, y con get_project_context antes de trabajar en uno. " +
+      "El usuario trabaja en varios equipos: si un proyecto está en su GitHub pero no clonado en este equipo, ofrécele clone_project. " +
+      "Antes de retomar un proyecto con commits por bajar (behind > 0), sugiere hacer git pull: puede haber trabajado en él desde otro equipo. " +
       "Para consultar código de otro proyecto usa search_projects / read_project_file en vez de buscar rutas a mano. " +
       "Al terminar una sesión de trabajo, guarda el progreso con update_status. Todo en español.",
   },
@@ -38,13 +41,36 @@ tool(
   "list_projects",
   {
     title: "Listar proyectos",
-    description: "Lista todos los proyectos con ruta, stack, prioridad, último commit, estado git (sin commit / sin push / por bajar), estado actual y siguientes pasos de su STATUS.md.",
+    description:
+      "Lista los proyectos clonados en este equipo (ruta, stack, prioridad, último commit, estado git, estado actual y siguientes pasos de su STATUS.md) " +
+      "y, aparte, los repos de la cuenta de GitHub que no están clonados aquí.",
     inputSchema: {},
     annotations: { readOnlyHint: true },
   },
-  () => {
+  async () => {
     const { projects } = scanProjects();
-    return projects.map(({ branches, remote, ...p }) => p);
+    let noClonados;
+    try {
+      noClonados = (await remoteOnlyProjects()).map(({ name, repo, description, descripcion, pushedAt, private: priv }) => ({
+        name, repo, descripcion: descripcion || description, ultimoPush: pushedAt?.slice(0, 10), privado: priv,
+      }));
+    } catch (e) {
+      noClonados = `No se pudo consultar GitHub: ${e.message}`;
+    }
+    return { clonados: projects.map(({ branches, remote, ...p }) => p), noClonadosEnEsteEquipo: noClonados };
+  },
+);
+
+tool(
+  "clone_project",
+  {
+    title: "Clonar proyecto",
+    description: "Clona en este equipo un repo de la cuenta de GitHub del usuario (en la carpeta de clonado de hub.local.json) y lo añade al hub. Úsalo cuando el usuario quiera trabajar en un proyecto que solo tiene en otro equipo.",
+    inputSchema: { repo: z.string().describe("Nombre del repo en GitHub o nombre del proyecto en el hub") },
+  },
+  async ({ repo }) => {
+    const p = await cloneProject(repo);
+    return { clonado: p.name, path: p.path, tieneStatus: p.hasStatusMd, siguientesPasos: p.nextSteps };
   },
 );
 
@@ -56,7 +82,11 @@ tool(
     inputSchema: { project: projectArg },
     annotations: { readOnlyHint: true },
   },
-  ({ project }) => getContext(findProject(project)),
+  async ({ project }) => {
+    const p = findProject(project);
+    await fetchProjects([p]); // trae las novedades de otros equipos antes de calcular ahead/behind
+    return getContext(findProject(p.name));
+  },
 );
 
 tool(

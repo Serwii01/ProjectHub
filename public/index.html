@@ -158,6 +158,24 @@
   .claude-box { background: var(--accent-soft); border-radius: 10px; padding: 12px 14px; display: flex; align-items: center; gap: 12px; }
   .claude-box code { font-size: 14px; color: var(--accent-text); font-weight: 600; }
 
+  /* Repos de GitHub no clonados aquí */
+  #remote { margin-top: 32px; }
+  #remote details { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow); }
+  #remote summary { padding: 14px 16px; cursor: pointer; font-weight: 600; display: flex; align-items: center; gap: 10px; list-style: none; }
+  #remote summary::-webkit-details-marker { display: none; }
+  #remote summary .chev { transition: transform .15s; color: var(--faint); }
+  #remote details[open] summary .chev { transform: rotate(90deg); }
+  #remote summary .hint { font-weight: 400; }
+  .rlist { list-style: none; margin: 0; padding: 0 8px 8px; }
+  .rlist li { display: flex; align-items: center; gap: 12px; padding: 9px 8px; border-top: 1px solid var(--border); }
+  .rlist .rname { font-weight: 600; }
+  .rlist .rdesc { color: var(--muted); font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .rlist .rinfo { min-width: 0; flex: 1; }
+  .rlist .rmeta { color: var(--faint); font-size: 12px; white-space: nowrap; }
+  .rlist .ractions { display: flex; gap: 4px; flex: none; }
+  .rlist a.btn { text-decoration: none; }
+  @media (max-width: 760px) { .rlist li { flex-wrap: wrap; } .rlist .rmeta { order: 3; } }
+
   .toast { position: fixed; bottom: 22px; left: 50%; transform: translate(-50%, 20px); background: var(--text); color: var(--bg); padding: 9px 16px; border-radius: 9px; font-size: 13px; opacity: 0; transition: opacity .18s, transform .18s; z-index: 20; pointer-events: none; }
   .toast.show { opacity: 1; transform: translate(-50%, 0); }
 
@@ -210,6 +228,7 @@
     </select>
   </div>
   <div class="grid" id="grid"></div>
+  <section id="remote"></section>
 </main>
 
 <div class="scrim" id="scrim"></div>
@@ -221,7 +240,7 @@ const $ = (s, el = document) => el.querySelector(s);
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 const PRIO = { alta: 0, media: 1, baja: 2, archivado: 3 };
 
-const state = { projects: [], generatedAt: null, filter: "all", query: "", sort: "activity", open: null, tab: "resumen", detail: null };
+const state = { projects: [], generatedAt: null, filter: "all", query: "", sort: "activity", open: null, tab: "resumen", detail: null, remote: null, remoteError: null, remoteOpen: false };
 
 // ---------- API ----------
 async function api(path, opts = {}) {
@@ -246,6 +265,16 @@ async function load({ spin = false } = {}) {
   } finally {
     btn.classList.remove("spin");
   }
+}
+
+async function loadRemote({ force = false } = {}) {
+  try {
+    state.remote = await api("github" + (force ? "?force" : ""));
+    state.remoteError = null;
+  } catch (e) {
+    state.remoteError = e.message;
+  }
+  renderRemote();
 }
 
 // ---------- Utilidades ----------
@@ -335,6 +364,41 @@ function render() {
     (a, b) => (b.lastCommit.date || "").localeCompare(a.lastCommit.date || ""));
 
   $("#grid").innerHTML = list.length ? list.map(card).join("") : `<div class="empty">No hay proyectos que coincidan.</div>`;
+  renderRemote();
+}
+
+function renderRemote() {
+  const el = $("#remote");
+  if (state.remoteError) { el.innerHTML = `<p class="hint">No se pudo consultar GitHub: ${esc(state.remoteError)}</p>`; return; }
+  if (!state.remote) { el.innerHTML = `<p class="hint">Consultando GitHub…</p>`; return; }
+  const q = state.query.toLowerCase();
+  const list = state.remote.filter((r) => !q || [r.name, r.repo, r.description, r.descripcion, r.language].join(" ").toLowerCase().includes(q));
+  if (!state.remote.length) { el.innerHTML = ""; return; }
+  const ageOf = (iso) => ago(Math.floor((Date.now() - new Date(iso)) / 86400000));
+  el.innerHTML = `
+    <details ${state.remoteOpen || q ? "open" : ""} id="remoteDetails">
+      <summary>
+        <svg class="chev" width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="m6 3.5 4.5 4.5L6 12.5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        En GitHub, no clonados en este equipo (${state.remote.length})
+        <span class="hint">· clónalos para trabajar aquí, u ocúltalos si ya no te interesan</span>
+      </summary>
+      <ul class="rlist">
+        ${list.map((r) => `
+          <li>
+            <div class="rinfo">
+              <div><span class="rname">${esc(r.name)}</span>${r.name !== r.repo ? ` <span class="hint">(${esc(r.repo)})</span>` : ""}${r.private ? ` <span class="badge warn">privado</span>` : ""}${r.prioridad ? ` <span class="prio ${esc(r.prioridad)}" style="margin-left:4px">${esc(r.prioridad)}</span>` : ""}</div>
+              <div class="rdesc">${esc(r.descripcion || r.description || "Sin descripción")}</div>
+            </div>
+            <span class="rmeta">${esc(r.language || "")}${r.language ? " · " : ""}${ageOf(r.pushedAt)}</span>
+            <div class="ractions">
+              <button class="btn sm primary" data-clone="${esc(r.repo)}">Clonar aquí</button>
+              <a class="btn sm ghost" href="${esc(r.url)}" target="_blank" rel="noopener" title="Ver en GitHub">${ICON.gh}</a>
+              <button class="btn sm ghost" data-hide="${esc(r.repo)}" title="Ocultar de esta lista (en todos los equipos)">Ocultar</button>
+            </div>
+          </li>`).join("") || `<li class="hint">Ninguno coincide con la búsqueda.</li>`}
+      </ul>
+    </details>`;
+  $("#remoteDetails").addEventListener("toggle", (e) => { state.remoteOpen = e.target.open; });
 }
 
 function card(p) {
@@ -496,9 +560,29 @@ function md(src) {
 
 // ---------- Eventos ----------
 document.addEventListener("click", async (e) => {
-  const t = e.target.closest("[data-copy],[data-open],[data-filter],[data-tab],[data-detail],#close,#scrim");
+  const t = e.target.closest("[data-copy],[data-open],[data-filter],[data-tab],[data-detail],[data-clone],[data-hide],#close,#scrim");
   if (!t) return;
   if (t.id === "close" || t.id === "scrim") return closeDrawer();
+  if (t.dataset.clone) {
+    t.disabled = true;
+    t.textContent = "Clonando…";
+    try {
+      const p = await send(`github/${encodeURIComponent(t.dataset.clone)}/clone`, "POST");
+      toast(`${p.name} clonado en ${p.path}`);
+      await load();
+      await loadRemote();
+    } catch (err) { toast(err.message); t.disabled = false; t.textContent = "Clonar aquí"; }
+    return;
+  }
+  if (t.dataset.hide) {
+    try {
+      await send(`github/${encodeURIComponent(t.dataset.hide)}/hide`, "POST");
+      state.remote = state.remote.filter((r) => r.repo !== t.dataset.hide);
+      renderRemote();
+      toast(`${t.dataset.hide} oculto`);
+    } catch (err) { toast(err.message); }
+    return;
+  }
   if (t.dataset.copy) { e.stopPropagation(); return copy(t.dataset.copy, `Copiado: ${t.dataset.copy} — pégalo en Claude Code`); }
   if (t.dataset.open) {
     e.stopPropagation();
@@ -545,11 +629,18 @@ document.addEventListener("keydown", (e) => {
 });
 $("#q").addEventListener("input", (e) => { state.query = e.target.value; render(); });
 $("#sort").addEventListener("change", (e) => { state.sort = e.target.value; render(); });
-$("#refresh").addEventListener("click", () => load({ spin: true }).then(() => toast("Proyectos actualizados")));
+// Actualizar = git fetch de todos (novedades de otros equipos) + reescanear + volver a mirar GitHub
+$("#refresh").addEventListener("click", async () => {
+  $("#refresh").classList.add("spin");
+  try { await send("fetch", "POST"); } catch (err) { toast("git fetch falló: " + err.message); }
+  await Promise.all([load({ spin: true }), loadRemote({ force: true })]);
+  toast("Proyectos actualizados");
+});
 // Refresca solo al volver a la pestaña (p. ej. después de trabajar con Claude)
 document.addEventListener("visibilitychange", () => { if (!document.hidden) load(); });
 
 load();
+loadRemote();
 </script>
 </body>
 </html>
