@@ -16,6 +16,7 @@ Se usa en **varios equipos**: el código y `hub.config.json` se sincronizan por 
 - `templates/` — plantillas de `CLAUDE.md` y `STATUS.md` para cada proyecto.
 
 ## Cómo se trabaja
+- El estado del propio hub está en `STATUS.md`. ProjectHub está en `exclude`, así que las herramientas MCP no lo ven: ese archivo se edita a mano.
 - Cada proyecto tiene en su raíz `CLAUDE.md` (cómo está hecho) y `STATUS.md` (dónde se quedó y qué sigue).
 - Skills de usuario (`~/.claude/skills/`): `/proyectos`, `/retomar <proyecto>` y `/cerrar`, que usan el MCP por debajo.
 - Cualquier lógica nueva va en `lib/hub.mjs` para que la compartan el MCP, el dashboard y el CLI.
