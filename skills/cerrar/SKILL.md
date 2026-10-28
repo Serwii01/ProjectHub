@@ -7,9 +7,9 @@ description: Cierra una sesión de trabajo en un proyecto guardando el progreso 
 
 Se aplica al proyecto en el que se ha trabajado (si no está claro cuál, pregunta).
 
-1. Repasa lo hecho en esta conversación y en git (`git_summary` con `diff: true`, o `git status` / `git log` / `git diff --stat`).
+1. Repasa lo hecho en esta conversación y en git (`git_summary` con `diff: true`, o `git status` / `git log` / `git diff --stat`). Mira también `unloggedCommits` en `get_project_context`: son commits posteriores a la última actualización de STATUS.md, incluidos los de sesiones anteriores que nunca se cerraron; inclúyelos.
 2. Llama a `update_status` (servidor MCP **project-hub**) con:
-   - `sesion`: viñetas concretas de lo hecho hoy.
+   - `sesion`: viñetas concretas de lo hecho hoy. Si hay commits de otros días sin anotar, haz una llamada aparte por cada día con `fecha` (AAAA-MM-DD), del más antiguo al más reciente.
    - `completados`: fragmentos del texto de los pasos de "Siguientes pasos" que ya están hechos.
    - `nuevos_pasos`: lo que queda o se ha descubierto, por orden de prioridad.
    - `estado`: el nuevo "Estado actual" (2–4 líneas) si ha cambiado.

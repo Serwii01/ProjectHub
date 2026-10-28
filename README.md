@@ -100,6 +100,7 @@ Lo comparten el CLI, el servidor MCP y el dashboard, así que todos ven exactame
 - **Detectar el stack** a partir de `package.json`, `composer.json`, `pom.xml`, Docker, Vercel o Supabase, en la raíz y un nivel por debajo.
 - **Calcular el estado git**: rama, cambios sin commit, commits sin subir y commits por bajar. Si una rama no tiene upstream configurado, compara con `origin/<rama>`.
 - **Fechar el último trabajo real**, sin contar los commits que solo tocan `CLAUDE.md` o `STATUS.md`.
+- **Detectar fichas desactualizadas**: commits con trabajo posteriores al último commit que tocó `STATUS.md`. Es decir, lo que se hizo sin `/cerrar`, por ejemplo en el otro equipo.
 - **Leer y escribir `STATUS.md`** por secciones, sin romper el formato.
 - **Consultar GitHub** para saber qué repos de la cuenta no están clonados en este equipo.
 - **Proteger** el acceso: no lee `.env`, claves ni `node_modules`, y no sale de la carpeta del proyecto.
@@ -190,6 +191,7 @@ Se abre con doble clic en **`Abrir dashboard.cmd`** o con `npm run dashboard`. L
 | **Para seguir ahora** | El proyecto recomendado (prioridad más alta con un siguiente paso claro) y botones para empezar. |
 | **Tarjetas** | Una por proyecto: descripción, prioridad, stack, actividad (punto verde si es de menos de 7 días, ámbar hasta 30, gris si es más antiguo), rama, estado git y siguiente paso. |
 | **Acciones de tarjeta** | Copiar `/retomar`, abrir en VS Code, en el explorador, en la terminal (Windows Terminal) o en GitHub. |
+| **Ficha desactualizada** | Si hay commits posteriores a la última vez que se guardó `STATUS.md` (se trabajó sin `/cerrar`), la tarjeta lo marca ("ficha sin N commits") y el detalle los lista, con un botón para pedirle a Claude que la ponga al día. |
 | **Panel de detalle** | Se abre al pulsar una tarjeta. Pestañas: **Resumen** (estado, pasos con casillas, añadir pasos, cambiar prioridad o descripción), **Git** (cambios, últimos commits, ramas), **CLAUDE.md** y **TODOs** del código. |
 | **En GitHub, no clonados aquí** | Repos de la cuenta que no están en este equipo, con los botones **Clonar aquí** y **Ocultar** (se ocultan en todos los equipos). |
 | **Actualizar** | Hace `git fetch` de todos los repos, vuelve a escanear y vuelve a consultar GitHub. |
@@ -224,7 +226,7 @@ Claude también las usa sin la barra, cuando lo que dices encaja con ellas.
 | `read_project_file` | Lee un archivo de cualquier proyecto por su ruta relativa. |
 | `search_projects` | Busca texto o una regex en un proyecto o en todos a la vez. |
 | `git_summary` | Rama, sin subir, por bajar, cambios, ramas, últimos commits y, opcionalmente, el diff. |
-| `update_status` | Actualiza `STATUS.md`: sesión, pasos completados y nuevos, estado, decisiones y problemas. **No hace commit.** |
+| `update_status` | Actualiza `STATUS.md`: sesión (con `fecha` opcional para anotar días anteriores), pasos completados y nuevos, estado, decisiones y problemas. **No hace commit.** |
 | `set_project_info` | Cambia la descripción o la prioridad en `hub.config.json`. |
 | `clone_project` | Clona en este equipo un repo de la cuenta de GitHub y lo añade al hub. |
 
@@ -413,6 +415,7 @@ npm run scan        # regenerar projects.json y PROJECTS.md
 | "El dashboard ya está abierto" | Ya hay uno en marcha; se abre el navegador en http://localhost:4310. |
 | "Por bajar" no se actualiza | Pulsa **Actualizar** en el dashboard (hace `git fetch`) o usa `/retomar`. |
 | Push rechazado (*non-fast-forward*) | Hay trabajo de otro equipo: `git pull` primero y después push. |
+| "Última sesión" no coincide con lo que hice | Se trabajó sin `/cerrar`: el proyecto saldrá como "ficha sin N commits". Pídele a Claude *"pon al día el STATUS.md de X con los commits que faltan"*. |
 | Conflicto en `STATUS.md` al hacer pull | Pasa si se cerró sesión en los dos equipos sin sincronizar. Quédate con las dos entradas de "Última sesión" y une los pasos. |
 
 ---

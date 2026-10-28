@@ -155,6 +155,10 @@
   .md td, .md th { border: 1px solid var(--border); padding: 4px 8px; text-align: left; }
   .md blockquote { margin: 8px 0; padding: 4px 12px; border-left: 3px solid var(--border); color: var(--muted); }
   .hint { color: var(--muted); font-size: 13px; }
+  .stale { background: var(--warn-soft); border-radius: 10px; padding: 12px 14px; }
+  .stale > .h { color: var(--warn); }
+  .stale p { margin: 0 0 8px; font-size: 13px; }
+  .stale .log li { border-color: color-mix(in srgb, var(--warn) 25%, transparent); }
   .claude-box { background: var(--accent-soft); border-radius: 10px; padding: 12px 14px; display: flex; align-items: center; gap: 12px; }
   .claude-box code { font-size: 14px; color: var(--accent-text); font-weight: 600; }
 
@@ -289,8 +293,9 @@ async function copy(text, msg) {
   try { await navigator.clipboard.writeText(text); toast(msg || "Copiado"); } catch { toast("No se pudo copiar"); }
 }
 const ago = (d) => d === null ? "sin commits" : d === 0 ? "hoy" : d === 1 ? "ayer" : d < 30 ? `hace ${d} días` : d < 365 ? `hace ${Math.round(d / 30)} ${Math.round(d / 30) === 1 ? "mes" : "meses"}` : "hace más de un año";
+const fecha = (iso) => iso ? new Date(iso).toLocaleString("es-ES", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }) : "—";
 const fresh = (d) => d === null || d > 30 ? "old" : d > 7 ? "mid" : "fresh";
-const pendingPush = (p) => p.ahead > 0 || p.uncommitted > 0;
+const pendingPush = (p) => p.ahead > 0 || p.uncommitted > 0 || p.statusStale;
 const inactive = (p) => (p.lastCommit.daysAgo ?? 999) > 30;
 
 function badges(p) {
@@ -299,6 +304,7 @@ function badges(p) {
   if (p.ahead) b.push(`<span class="badge warn">${p.ahead} sin subir</span>`);
   if (p.behind) b.push(`<span class="badge danger">${p.behind} por bajar</span>`);
   if (!p.hasStatusMd) b.push(`<span class="badge danger">sin STATUS.md</span>`);
+  if (p.statusStale) b.push(`<span class="badge warn" title="Commits hechos después de la última actualización de STATUS.md">ficha sin ${p.unloggedCount} ${p.unloggedCount === 1 ? "commit" : "commits"}</span>`);
   if (!b.length) b.push(`<span class="badge ok">al día</span>`);
   return b.join("");
 }
@@ -328,7 +334,7 @@ function render() {
 
   const stats = [
     { id: "all", n: P.length, l: "Proyectos" },
-    { id: "push", n: P.filter(pendingPush).length, l: "Con cambios sin subir" },
+    { id: "push", n: P.filter(pendingPush).length, l: "Sin subir o ficha sin actualizar" },
     { id: "alta", n: P.filter((p) => p.prioridad === "alta").length, l: "Prioridad alta" },
     { id: "inactive", n: P.filter(inactive).length, l: "Sin tocar +30 días" },
   ];
@@ -349,7 +355,7 @@ function render() {
       </div>
     </div>` : "";
 
-  const chips = [["all", "Todos"], ["push", "Sin subir"], ["alta", "Prioridad alta"], ["inactive", "Inactivos"]];
+  const chips = [["all", "Todos"], ["push", "Pendientes"], ["alta", "Prioridad alta"], ["inactive", "Inactivos"]];
   $("#chips").innerHTML = chips.map(([id, l]) => `<button class="chip ${state.filter === id ? "active" : ""}" data-filter="${id}">${l}</button>`).join("");
 
   const q = state.query.toLowerCase();
@@ -492,7 +498,17 @@ function tabBody(tab, { p, claudeMd, statusMd, git, todos }) {
     if (!statusMd) return `<p class="hint">Este proyecto aún no tiene <code>STATUS.md</code>. Ábrelo con Claude Code y escribe <code>/retomar ${esc(p.name)}</code>: te ofrecerá crearlo analizando el repo.</p>`;
     const steps = parseSteps(statusMd);
     const sesiones = section(statusMd, "Última sesión");
-    return `
+    const last = p.lastCommit;
+    const actividad = `<div class="section"><div class="h">Última actividad en git</div><div>${last.at ? fecha(last.at) : "—"} · ${esc(last.message)}</div></div>`;
+    const stale = p.statusStale ? `
+      <div class="section stale">
+        <div class="h">⚠ Ficha desactualizada</div>
+        <p>Después de la última vez que se guardó <code>STATUS.md</code> (${fecha(p.statusUpdatedAt)}) hay <strong>${p.unloggedCount} ${p.unloggedCount === 1 ? "commit" : "commits"}</strong> que no aparecen en «Última sesión». Seguramente se trabajó sin hacer <code>/cerrar</code>.</p>
+        <ul class="log">${p.unloggedCommits.slice(0, 8).map((c) => `<li><span class="h">${esc(c.hash)}</span><span class="d">${fecha(c.at)}</span><span>${esc(c.message)}</span></li>`).join("")}</ul>
+        ${p.unloggedCount > 8 ? `<p class="hint">…y ${p.unloggedCount - 8} más (pestaña Git).</p>` : ""}
+        <button class="btn sm primary" data-copy="Pon al día el STATUS.md de ${esc(p.name)} con los commits que faltan">${ICON.claude} Copiar petición para Claude</button>
+      </div>` : "";
+    return `${stale}${actividad}
       <div class="section"><div class="h">Estado actual</div><div class="estado md">${md(section(statusMd, "Estado actual")) || "—"}</div></div>
       <div class="section">
         <div class="h">Siguientes pasos</div>

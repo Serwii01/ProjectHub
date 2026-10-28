@@ -19,6 +19,7 @@ const server = new McpServer(
       "Empieza con list_projects para ver qué hay y en qué estado está cada uno, y con get_project_context antes de trabajar en uno. " +
       "El usuario trabaja en varios equipos: si un proyecto está en su GitHub pero no clonado en este equipo, ofrécele clone_project. " +
       "Antes de retomar un proyecto con commits por bajar (behind > 0), sugiere hacer git pull: puede haber trabajado en él desde otro equipo. " +
+      "Si statusStale es true, STATUS.md no recoge los últimos commits (unloggedCommits): no des su 'Última sesión' por buena; avisa y ofrece ponerlo al día con update_status a partir de esos commits. " +
       "Para consultar código de otro proyecto usa search_projects / read_project_file en vez de buscar rutas a mano. " +
       "Al terminar una sesión de trabajo, guarda el progreso con update_status. Todo en español.",
   },
@@ -57,7 +58,7 @@ tool(
     } catch (e) {
       noClonados = `No se pudo consultar GitHub: ${e.message}`;
     }
-    return { clonados: projects.map(({ branches, remote, ...p }) => p), noClonadosEnEsteEquipo: noClonados };
+    return { clonados: projects.map(({ branches, remote, unloggedCommits, ...p }) => p), noClonadosEnEsteEquipo: noClonados };
   },
 );
 
@@ -78,7 +79,9 @@ tool(
   "get_project_context",
   {
     title: "Contexto de un proyecto",
-    description: "Todo lo necesario para retomar un proyecto en una llamada: datos del registro, CLAUDE.md (cómo está hecho), STATUS.md (dónde se quedó), git (status, ramas, últimos commits) y TODO/FIXME.",
+    description:
+      "Todo lo necesario para retomar un proyecto en una llamada: datos del registro, CLAUDE.md (cómo está hecho), STATUS.md (dónde se quedó), git (status, ramas, últimos commits) y TODO/FIXME. " +
+      "project.statusStale / unloggedCommits indican commits hechos después de la última actualización de STATUS.md.",
     inputSchema: { project: projectArg },
     annotations: { readOnlyHint: true },
   },
@@ -151,6 +154,7 @@ tool(
       project: projectArg,
       estado: z.string().optional().describe("Nuevo texto de 'Estado actual' (2–4 líneas)"),
       sesion: z.array(z.string()).optional().describe("Viñetas de lo hecho en esta sesión"),
+      fecha: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().describe("Día de la sesión (AAAA-MM-DD) si no es hoy, p. ej. para anotar commits de un día anterior que no se cerraron"),
       completados: z.array(z.string()).optional().describe("Fragmentos de texto de los pasos ya hechos, para quitarlos"),
       nuevos_pasos: z.array(z.string()).optional().describe("Pasos nuevos a añadir al final de 'Siguientes pasos'"),
       decisiones: z.array(z.string()).optional(),
