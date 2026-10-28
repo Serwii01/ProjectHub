@@ -10,7 +10,8 @@ Funcionando y en GitHub (`Serwii01/ProjectHub`): registro de proyectos, servidor
 - [ ] Recordatorio automático de `/cerrar`: hook de Claude Code al terminar la sesión si hubo commits y STATUS.md no se actualizó
 - [ ] Botón «Sincronizar todo» en el dashboard (pull/push en avance rápido, con confirmación)
 - [ ] Aviso al abrir el dashboard si hay proyectos con trabajo del otro equipo sin bajar
-- [ ] Dar prioridad y descripción a cinearchive en `hub.config.json` y ocultar el repo antiguo `PlanifyPlus` (JavaFX) de la lista de no clonados
+- [ ] Dar prioridad y descripción a cinearchive y drogedex en `hub.config.json`, y ocultar el repo antiguo `PlanifyPlus` (JavaFX) de la lista de no clonados
+- [ ] Marcar `drogedex-nave` y `drogedex-beton` en el hub como fuentes de diseño de drogedex (se editan allí y se importan con `npm run disenos`), para que no parezcan proyectos aparte
 - [ ] Tests automáticos del núcleo (lectura/escritura de STATUS.md con LF y CRLF, reglas de seguridad)
 - [ ] Informe semanal (`weekly_report`) a partir de las sesiones de todos los STATUS.md
 
@@ -22,6 +23,8 @@ Funcionando y en GitHub (`Serwii01/ProjectHub`): registro de proyectos, servidor
 - Dashboard: última actividad real en git con día y hora, separada de la última sesión anotada.
 - Puesta al día de la ficha de cinearchive con los 18 commits del 27 oct hechos sin `/cerrar`.
 - Fusionada la exclusión de la carpeta `TFG` hecha desde el otro equipo.
+- Detección de stacks ampliada: Astro, Next.js, Nuxt, Svelte, Express, Drizzle, Firebase, Leaflet y Three.js (cinearchive, CreaFlow y drogedex ya salen con su stack completo).
+- Usado en un caso real: `/retomar drogedex` → fichas creadas y fusión de los tres diseños de drogedex publicada (el trabajo está anotado en el STATUS.md de drogedex).
 
 ### 2026-10-27
 - Creado el hub: núcleo `lib/hub.mjs`, escáner, servidor MCP, skills y dashboard.
