@@ -155,6 +155,14 @@
   .md td, .md th { border: 1px solid var(--border); padding: 4px 8px; text-align: left; }
   .md blockquote { margin: 8px 0; padding: 4px 12px; border-left: 3px solid var(--border); color: var(--muted); }
   .hint { color: var(--muted); font-size: 13px; }
+  .ahora { background: var(--accent-soft); border-radius: 10px; padding: 12px 14px; }
+  .ahora > .h { color: var(--accent-text); }
+  .avisos { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+  .avisos li { padding: 8px 10px; border-left: 3px solid var(--idle); background: var(--surface-2); border-radius: 0 8px 8px 0; font-size: 13px; }
+  .avisos li.alto { border-left-color: var(--danger); }
+  .avisos li.medio { border-left-color: var(--warn); }
+  .avisos strong { display: block; font-weight: 600; }
+  .avisos span { color: var(--muted); }
   .stale { background: var(--warn-soft); border-radius: 10px; padding: 12px 14px; }
   .stale > .h { color: var(--warn); }
   .stale p { margin: 0 0 8px; font-size: 13px; }
@@ -295,7 +303,7 @@ async function copy(text, msg) {
 const ago = (d) => d === null ? "sin commits" : d === 0 ? "hoy" : d === 1 ? "ayer" : d < 30 ? `hace ${d} días` : d < 365 ? `hace ${Math.round(d / 30)} ${Math.round(d / 30) === 1 ? "mes" : "meses"}` : "hace más de un año";
 const fecha = (iso) => iso ? new Date(iso).toLocaleString("es-ES", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }) : "—";
 const fresh = (d) => d === null || d > 30 ? "old" : d > 7 ? "mid" : "fresh";
-const pendingPush = (p) => p.ahead > 0 || p.uncommitted > 0 || p.statusStale;
+const pendingPush = (p) => p.ahead > 0 || p.behind > 0 || p.uncommitted > 0 || p.statusStale;
 const inactive = (p) => (p.lastCommit.daysAgo ?? 999) > 30;
 
 function badges(p) {
@@ -471,7 +479,7 @@ function section(md, name) {
 }
 
 function renderDrawer() {
-  const { project: p, claudeMd, statusMd, git, todos } = state.detail;
+  const { project: p, claudeMd, statusMd, git, todos, avisos, siguienteAccion } = state.detail;
   const tabs = [["resumen", "Resumen"], ["git", "Git"], ["docs", "CLAUDE.md"], ["todos", `TODOs${todos.length ? ` (${todos.length})` : ""}`]];
   $("#drawer").innerHTML = `
     <div class="d-head">
@@ -490,12 +498,20 @@ function renderDrawer() {
       </div>
       <div class="tabs">${tabs.map(([id, l]) => `<button class="tab ${state.tab === id ? "active" : ""}" data-tab="${id}">${l}</button>`).join("")}</div>
     </div>
-    <div class="d-body">${tabBody(state.tab, { p, claudeMd, statusMd, git, todos })}</div>`;
+    <div class="d-body">${tabBody(state.tab, { p, claudeMd, statusMd, git, todos, avisos, siguienteAccion })}</div>`;
 }
 
-function tabBody(tab, { p, claudeMd, statusMd, git, todos }) {
+// Los mismos avisos que recibe Claude. La ficha desactualizada tiene su propio recuadro.
+function avisosHtml(avisos, siguienteAccion) {
+  const lista = avisos.filter((a) => a.codigo !== "ficha_desactualizada");
+  return `
+    <div class="section ahora"><div class="h">Qué toca ahora</div><div>${inlineMd(siguienteAccion)}</div></div>
+    ${lista.length ? `<div class="section"><div class="h">Avisos</div><ul class="avisos">${lista.map((a) => `<li class="${esc(a.nivel)}"><strong>${inlineMd(a.mensaje)}</strong>${a.accion !== a.mensaje ? `<span>${inlineMd(a.accion)}</span>` : ""}</li>`).join("")}</ul></div>` : ""}`;
+}
+
+function tabBody(tab, { p, claudeMd, statusMd, git, todos, avisos, siguienteAccion }) {
   if (tab === "resumen") {
-    if (!statusMd) return `<p class="hint">Este proyecto aún no tiene <code>STATUS.md</code>. Ábrelo con Claude Code y escribe <code>/retomar ${esc(p.name)}</code>: te ofrecerá crearlo analizando el repo.</p>`;
+    if (!statusMd) return `${avisosHtml(avisos, siguienteAccion)}<p class="hint">Abre el proyecto con Claude Code y escribe <code>/retomar ${esc(p.name)}</code>: te ofrecerá crear su ficha analizando el repo.</p>`;
     const steps = parseSteps(statusMd);
     const sesiones = section(statusMd, "Última sesión");
     const last = p.lastCommit;
@@ -508,7 +524,7 @@ function tabBody(tab, { p, claudeMd, statusMd, git, todos }) {
         ${p.unloggedCount > 8 ? `<p class="hint">…y ${p.unloggedCount - 8} más (pestaña Git).</p>` : ""}
         <button class="btn sm primary" data-copy="Pon al día el STATUS.md de ${esc(p.name)} con los commits que faltan">${ICON.claude} Copiar petición para Claude</button>
       </div>` : "";
-    return `${stale}${actividad}
+    return `${avisosHtml(avisos, siguienteAccion)}${stale}${actividad}
       <div class="section"><div class="h">Estado actual</div><div class="estado md">${md(section(statusMd, "Estado actual")) || "—"}</div></div>
       <div class="section">
         <div class="h">Siguientes pasos</div>

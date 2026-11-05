@@ -6,22 +6,24 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
 import {
-  scanProjects, findProject, getContext, listFiles, readProjectFile,
+  HUB, scanProjects, findProject, getContext, listFiles, readProjectFile,
   searchProjects, gitSummary, updateStatus, loadConfig, saveConfig,
   remoteOnlyProjects, cloneProject, fetchProjects,
 } from "./lib/hub.mjs";
+import { codeHash, hubHealth } from "./lib/instalacion.mjs";
+
+const loadedHash = codeHash();
 
 const server = new McpServer(
-  { name: "project-hub", version: "1.0.0" },
+  { name: "project-hub", version: "1.1.0" },
   {
     instructions:
-      "ProjectHub da acceso a todos los proyectos (repos) del usuario por su nombre, desde cualquier carpeta. " +
-      "Empieza con list_projects para ver qué hay y en qué estado está cada uno, y con get_project_context antes de trabajar en uno. " +
-      "El usuario trabaja en varios equipos: si un proyecto está en su GitHub pero no clonado en este equipo, ofrécele clone_project. " +
-      "Antes de retomar un proyecto con commits por bajar (behind > 0), sugiere hacer git pull: puede haber trabajado en él desde otro equipo. " +
-      "Si statusStale es true, STATUS.md no recoge los últimos commits (unloggedCommits): no des su 'Última sesión' por buena; avisa y ofrece ponerlo al día con update_status a partir de esos commits. " +
-      "Para consultar código de otro proyecto usa search_projects / read_project_file en vez de buscar rutas a mano. " +
-      "Al terminar una sesión de trabajo, guarda el progreso con update_status. Todo en español.",
+      "ProjectHub da acceso a los proyectos (repos) del usuario por su nombre, desde cualquier carpeta. El usuario trabaja en dos equipos. " +
+      "Antes de trabajar en un proyecto llama a get_project_context y actúa según siguienteAccion y avisos: traen la instrucción exacta para cada situación " +
+      "(commits por bajar, ficha desactualizada, ramas, archivos que no se editan a mano). Atiende primero los avisos de nivel alto. " +
+      "Si una herramienta dice que un nombre es ambiguo, pregunta al usuario; no elijas tú. Si no está clonado pero sí en GitHub, ofrece clone_project. " +
+      "Para consultar otro proyecto usa search_projects y read_project_file. Al terminar un bloque de trabajo, guarda el progreso con update_status y revisa su campo cambios. " +
+      "Este servidor no hace commit, push ni pull: eso lo hace Claude con sus herramientas y con confirmación del usuario. Si algo del hub falla o parece viejo, llama a hub_health. Todo en español.",
   },
 );
 
@@ -43,12 +45,13 @@ tool(
   {
     title: "Listar proyectos",
     description:
-      "Lista los proyectos clonados en este equipo (ruta, stack, prioridad, último commit, estado git, estado actual y siguientes pasos de su STATUS.md) " +
-      "y, aparte, los repos de la cuenta de GitHub que no están clonados aquí.",
-    inputSchema: {},
+      "Lista los proyectos clonados en este equipo (ruta, stack, prioridad, último commit, estado git, avisos, siguienteAccion y siguientes pasos) " +
+      "y, aparte, los repos de la cuenta de GitHub que no están clonados aquí. Hace git fetch antes, salvo con actualizar=false, para saber qué hay por bajar.",
+    inputSchema: { actualizar: z.boolean().optional().describe("Hacer git fetch de todos antes de calcular el estado (por defecto true). false si solo importa la lista.") },
     annotations: { readOnlyHint: true },
   },
-  async () => {
+  async ({ actualizar = true }) => {
+    const sinConexion = actualizar ? (await fetchProjects()).filter((r) => !r.ok).map((r) => r.project) : [];
     const { projects } = scanProjects();
     let noClonados;
     try {
@@ -58,7 +61,8 @@ tool(
     } catch (e) {
       noClonados = `No se pudo consultar GitHub: ${e.message}`;
     }
-    return { clonados: projects.map(({ branches, remote, unloggedCommits, ...p }) => p), noClonadosEnEsteEquipo: noClonados };
+    const clonados = projects.map(({ branches, remote, unloggedCommits, calidad, ...p }) => p);
+    return { clonados, noClonadosEnEsteEquipo: noClonados, ...(sinConexion.length && { fetchFallido: sinConexion }) };
   },
 );
 
@@ -80,8 +84,8 @@ tool(
   {
     title: "Contexto de un proyecto",
     description:
-      "Todo lo necesario para retomar un proyecto en una llamada: datos del registro, CLAUDE.md (cómo está hecho), STATUS.md (dónde se quedó), git (status, ramas, últimos commits) y TODO/FIXME. " +
-      "project.statusStale / unloggedCommits indican commits hechos después de la última actualización de STATUS.md.",
+      "Todo para retomar un proyecto en una llamada, tras hacer git fetch: siguienteAccion (qué hacer ahora), avisos (cada uno con su instrucción en accion), datos del registro, " +
+      "CLAUDE.md, STATUS.md, git y TODO/FIXME. project.unloggedCommits son commits posteriores a la última actualización de STATUS.md; project.fuentes y project.fuenteDe, repos relacionados.",
     inputSchema: { project: projectArg },
     annotations: { readOnlyHint: true },
   },
@@ -149,13 +153,14 @@ tool(
     title: "Actualizar STATUS.md",
     description:
       "Guarda el progreso de una sesión en el STATUS.md del proyecto (lo crea si no existe). Añade una entrada fechada en 'Última sesión' (conserva las 5 últimas), " +
-      "quita de 'Siguientes pasos' los completados y añade los nuevos, y puede reescribir el estado actual y añadir decisiones o problemas. No hace commit.",
+      "quita de 'Siguientes pasos' los completados y añade los nuevos, y puede reescribir el estado actual y añadir decisiones o problemas. No hace commit. " +
+      "Devuelve cambios: revisa noEncontrados y ambiguos, porque esos pasos no se han quitado; repite con un fragmento más concreto.",
     inputSchema: {
       project: projectArg,
       estado: z.string().optional().describe("Nuevo texto de 'Estado actual' (2–4 líneas)"),
       sesion: z.array(z.string()).optional().describe("Viñetas de lo hecho en esta sesión"),
       fecha: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().describe("Día de la sesión (AAAA-MM-DD) si no es hoy, p. ej. para anotar commits de un día anterior que no se cerraron"),
-      completados: z.array(z.string()).optional().describe("Fragmentos de texto de los pasos ya hechos, para quitarlos"),
+      completados: z.array(z.string()).optional().describe("Fragmento del texto de cada paso ya hecho, para quitarlo. Debe señalar un único paso"),
       nuevos_pasos: z.array(z.string()).optional().describe("Pasos nuevos a añadir al final de 'Siguientes pasos'"),
       decisiones: z.array(z.string()).optional(),
       problemas: z.array(z.string()).optional(),
@@ -165,7 +170,23 @@ tool(
     const p = findProject(project);
     const status = updateStatus(p, { ...rest, nuevosPasos: nuevos_pasos ?? [] });
     scanProjects();
-    return { project: p.name, file: `${p.path}/STATUS.md`, estado: status.estado, siguientesPasos: status.steps };
+    return { project: p.name, file: `${p.path}/STATUS.md`, cambios: status.cambios, estado: status.estado, siguientesPasos: status.steps };
+  },
+);
+
+tool(
+  "hub_health",
+  {
+    title: "Estado del propio hub",
+    description:
+      "Comprueba que el hub está al día en este equipo: versión del MCP en marcha, skills, reglas globales, hooks, dependencias, carpetas y commits del hub por bajar o subir. " +
+      "Devuelve problemas, cada uno con su accion. Úsala si algo del hub falla o parece viejo, y al empezar en un equipo tras cambiar el hub.",
+    inputSchema: {},
+    annotations: { readOnlyHint: true },
+  },
+  async () => {
+    await fetchProjects([{ name: "ProjectHub", path: HUB, remote: true }]);
+    return hubHealth({ loadedHash });
   },
 );
 

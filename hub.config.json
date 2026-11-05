@@ -4,13 +4,34 @@
     "hideForks": true,
     "ignore": ["Serwii01", "ProjectHub"]
   },
-  "exclude": ["Obsidian Vault", "ProjectHub", "TFG"],
+  "exclude": ["Obsidian Vault", "TFG"],
   "projects": {
+    "ProjectHub": { "repo": "ProjectHub", "descripcion": "Centro de control de los proyectos: registro, MCP, skills, hooks y dashboard" },
     "GeoHub": { "repo": "geohub", "descripcion": "Hub de juegos de geografía (13 juegos, reto diario, examen)", "prioridad": "media" },
     "PlanifyPlus": { "repo": "PlanifyPlus2", "descripcion": "Actividades comunitarias (DAM, en equipo): Laravel 12 + Angular 21", "prioridad": "baja" },
     "CreaFlow": { "repo": "lamostudio", "descripcion": "Lamo Studio: gestión de proyectos creativos, MVP sin backend", "prioridad": "media" },
     "PrestArte": { "repo": "PrestArte", "descripcion": "TFG: préstamo de obras de arte entre coleccionistas y museos", "prioridad": "alta" },
     "ropa": { "repo": "ropa", "descripcion": "PWA de inventario de armario y combinaciones", "prioridad": "media" },
-    "rukujack": { "repo": "rukujack", "descripcion": "Blackjack 3D multijugador P2P en el navegador", "prioridad": "baja" }
+    "rukujack": { "repo": "rukujack", "descripcion": "Blackjack 3D multijugador P2P en el navegador", "prioridad": "baja" },
+    "roam": { "repo": "roam", "descripcion": "PWA para registrar y planificar viajes: mapa, bitácora, plan diario y gastos" },
+    "cinearchive": { "repo": "cinearchive", "descripcion": "Archivo de cine abierto y multilingüe, en producción en cinearchive.es" },
+    "drogedex": {
+      "repo": "drogedex",
+      "descripcion": "TFG de Psicología: enciclopedia de sustancias con tres diseños en una web",
+      "noEditar": ["src/themes/", "src/pages/nave/", "src/pages/hormigon/"],
+      "reglas": ["Nunca incluir dosis ni contenido que promueva el consumo."]
+    },
+    "drogedex-nave": {
+      "repo": "drogedex-nave",
+      "descripcion": "Diseño Nave de drogedex (nave rave y ruin bar)",
+      "fuenteDe": "drogedex",
+      "reglas": ["Nunca incluir dosis ni contenido que promueva el consumo.", "El contenido (src/data) se cambia en drogedex, no aquí."]
+    },
+    "drogedex-beton": {
+      "repo": "drogedex-beton",
+      "descripcion": "Diseño Hormigón de drogedex (monocromo y brutalista)",
+      "fuenteDe": "drogedex",
+      "reglas": ["Nunca incluir dosis ni contenido que promueva el consumo.", "El contenido (src/data) se cambia en drogedex, no aquí."]
+    }
   }
 }

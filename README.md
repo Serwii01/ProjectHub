@@ -204,6 +204,33 @@ Los cambios que haces aquí (marcar pasos, añadir pasos, prioridades) se guarda
 
 ## Claude: skills y servidor MCP
 
+### Cómo llegan las instrucciones a Claude
+
+| Capa | Cuándo actúa | Qué aporta |
+|---|---|---|
+| **Reglas globales** en `~/.claude/CLAUDE.md` | En todas las sesiones | Que el hub existe, cuándo consultarlo y que no se hace commit ni push sin confirmación. El instalador las pone entre marcas, sin tocar el resto del archivo. |
+| **Hook `SessionStart`** | Al abrir sesión en un proyecto del hub | Hace `git fetch` y da a Claude el estado: último trabajo, siguiente acción y avisos. |
+| **Hook `Stop`** | Al acabar un turno | Si hay commits sin anotar, te recuerda `/cerrar`. Una vez por sesión; no bloquea nada. |
+| **Avisos del MCP** | Al consultar un proyecto | `siguienteAccion` y `avisos`, cada uno con la instrucción exacta para esa situación. El dashboard muestra los mismos. |
+| **Skills** | Al usar `/proyectos`, `/retomar` o `/cerrar` | El procedimiento paso a paso y el formato de la respuesta. |
+
+Los hooks solo actúan si la sesión está en la carpeta del proyecto. Si trabajas con Claude desde otra carpeta, siguen funcionando las reglas globales y los avisos.
+
+### Avisos
+
+Se calculan en `computeAvisos` (`lib/hub.mjs`) y tienen nivel `alto`, `medio` o `info`:
+
+| Código | Cuándo |
+|---|---|
+| `ramas_divergidas`, `commits_por_bajar` | Hay trabajo en GitHub que no está aquí. |
+| `ficha_desactualizada` | Hay commits posteriores a la última actualización de `STATUS.md`. |
+| `sin_status`, `sin_claude_md` | Falta una ficha. |
+| `cambios_sin_commit`, `commits_sin_subir` | Hay trabajo que el otro equipo no verá. |
+| `rama_con_otro_nombre`, `rama_secundaria` | La rama local no es la habitual. El primero da el comando de push correcto. |
+| `fuente_de_otro`, `tiene_fuentes` | El proyecto está relacionado con otro (`fuenteDe`). |
+| `no_editar`, `regla` | Rutas generadas y reglas propias del proyecto. |
+| `sin_prioridad`, `inactivo`, `calidad_ficha` | Datos que faltan, más de 30 días sin tocar, ficha incompleta o pasos vagos. |
+
 ### Skills
 
 Están en `skills/`. El instalador las copia a `~/.claude/skills`.
@@ -220,17 +247,20 @@ Claude también las usa sin la barra, cuando lo que dices encaja con ellas.
 
 | Herramienta | Descripción |
 |---|---|
-| `list_projects` | Proyectos clonados aquí (ruta, stack, prioridad, último commit, estado git, estado y siguientes pasos) y repos de GitHub no clonados. |
-| `get_project_context` | Todo para retomar un proyecto en una sola llamada: `git fetch`, `CLAUDE.md`, `STATUS.md`, git y TODOs. |
+| `list_projects` | Hace `git fetch` (salvo con `actualizar: false`) y lista los proyectos clonados aquí, con estado git, avisos y siguiente acción, y los repos de GitHub no clonados. |
+| `get_project_context` | Todo para retomar un proyecto en una sola llamada: `git fetch`, `siguienteAccion`, `avisos`, `CLAUDE.md`, `STATUS.md`, git y TODOs. |
 | `list_project_files` | Archivos de un proyecto, respetando `.gitignore`. |
 | `read_project_file` | Lee un archivo de cualquier proyecto por su ruta relativa. |
 | `search_projects` | Busca texto o una regex en un proyecto o en todos a la vez. |
 | `git_summary` | Rama, sin subir, por bajar, cambios, ramas, últimos commits y, opcionalmente, el diff. |
-| `update_status` | Actualiza `STATUS.md`: sesión (con `fecha` opcional para anotar días anteriores), pasos completados y nuevos, estado, decisiones y problemas. **No hace commit.** |
+| `update_status` | Actualiza `STATUS.md`: sesión (con `fecha` opcional para anotar días anteriores), pasos completados y nuevos, estado, decisiones y problemas. Devuelve `cambios`, con los pasos que no ha podido quitar. **No hace commit.** |
 | `set_project_info` | Cambia la descripción o la prioridad en `hub.config.json`. |
 | `clone_project` | Clona en este equipo un repo de la cuenta de GitHub y lo añade al hub. |
+| `hub_health` | Comprueba el propio hub: versión del MCP en marcha, skills, reglas globales, hooks, dependencias y commits del hub. Cada problema trae su solución. |
 
 El servidor nunca hace commit, push ni nada destructivo. Esas acciones las hace Claude con sus herramientas normales, y siempre preguntando.
+
+Si un nombre encaja con varios proyectos ("drog"), el hub no elige: devuelve los candidatos para que Claude pregunte.
 
 ---
 
@@ -267,13 +297,19 @@ Si un proyecto solo está en el otro equipo pero sí en GitHub, aparece en "no c
     "hideForks": true,
     "ignore": ["Serwii01", "ProjectHub"]
   },
-  "exclude": ["Obsidian Vault", "ProjectHub"],
+  "exclude": ["Obsidian Vault", "TFG"],
   "projects": {
     "CreaFlow": {
       "repo": "lamostudio",
       "descripcion": "Lamo Studio: gestión de proyectos creativos",
       "prioridad": "media"
-    }
+    },
+    "drogedex": {
+      "repo": "drogedex",
+      "noEditar": ["src/themes/", "src/pages/nave/"],
+      "reglas": ["Nunca incluir dosis ni contenido que promueva el consumo."]
+    },
+    "drogedex-nave": { "repo": "drogedex-nave", "fuenteDe": "drogedex" }
   }
 }
 ```
@@ -286,6 +322,9 @@ Si un proyecto solo está en el otro equipo pero sí en GitHub, aparece en "no c
 | `exclude` | Carpetas que no se tratan como proyectos aunque sean repos git. |
 | `projects.<nombre>.repo` | Nombre del repo en GitHub, para emparejarlo en cualquier equipo. |
 | `projects.<nombre>.descripcion` / `prioridad` | Prioridad: `alta`, `media`, `baja` o `archivado`. Se pueden editar desde el dashboard o con Claude. |
+| `projects.<nombre>.fuenteDe` | Este repo alimenta a otro proyecto del hub. Claude avisa de dónde se hace cada cambio. |
+| `projects.<nombre>.noEditar` | Rutas generadas que no se editan a mano. |
+| `projects.<nombre>.reglas` | Reglas propias del proyecto, que Claude recibe como avisos. |
 
 ### `hub.local.json`: de cada equipo, NO se sube
 
@@ -372,14 +411,17 @@ Desde una tarjeta del dashboard estás a un clic de VS Code, la terminal o GitHu
 
 ```
 ProjectHub/
-├── lib/hub.mjs           núcleo compartido (escaneo, git, STATUS.md, GitHub, seguridad)
+├── lib/hub.mjs           núcleo compartido (escaneo, avisos, git, STATUS.md, GitHub, seguridad)
+├── lib/instalacion.mjs   lo que se instala en ~/.claude y su comprobación (hub_health)
+├── hooks/                hooks SessionStart y Stop de Claude Code
+├── test/                 tests del núcleo (npm test)
 ├── mcp-server.mjs        servidor MCP project-hub (stdio)
 ├── dashboard.mjs         servidor web del dashboard (localhost:4310)
 ├── public/index.html     interfaz del dashboard (HTML + JS sin dependencias)
 ├── scan.mjs              CLI: genera projects.json y PROJECTS.md
 ├── instalar.mjs          instalador para cada equipo
 ├── skills/               fuente de /proyectos, /retomar, /cerrar ({{HUB}} = ruta del hub)
-├── templates/            plantillas de CLAUDE.md y STATUS.md
+├── templates/            plantillas de CLAUDE.md y STATUS.md, y reglas globales
 ├── hub.config.json       configuración común (se sube)
 ├── hub.local.json        configuración de este equipo (no se sube)
 ├── Abrir dashboard.cmd   lanzador con doble clic
@@ -394,13 +436,15 @@ Archivos generados (no se suben): `projects.json`, `PROJECTS.md` y `.cache/` (ca
 npm run instalar    # instalar o actualizar en este equipo
 npm run dashboard   # abrir el dashboard
 npm run scan        # regenerar projects.json y PROJECTS.md
+npm test            # tests del núcleo
 ```
 
 ### Al modificar el hub
 
-- La lógica nueva va en `lib/hub.mjs`, para que la usen el MCP, el dashboard y el CLI.
-- Si cambias `lib/hub.mjs` o `mcp-server.mjs`, **reinicia Claude Code**; si cambias `dashboard.mjs`, reinicia el dashboard. Los cambios en `public/index.html` solo necesitan recargar la página.
-- Si cambias algo en `skills/`, ejecuta `npm run instalar`.
+- La lógica nueva va en `lib/hub.mjs`, para que la usen el MCP, el dashboard y el CLI, y con su test.
+- Si cambias `lib/` o `mcp-server.mjs`, **reinicia Claude Code**; si cambias `dashboard.mjs`, reinicia el dashboard. Los cambios en `public/index.html` solo necesitan recargar la página.
+- Si cambias `skills/` o `templates/claude-global.md`, ejecuta `npm run instalar`. Los hooks leen el código al ejecutarse: no hace falta reiniciar.
+- La herramienta `hub_health` dice qué falta por actualizar.
 
 ---
 
@@ -414,6 +458,8 @@ npm run scan        # regenerar projects.json y PROJECTS.md
 | No salen mis repos privados | Hace falta `githubToken` en `hub.local.json`. |
 | "El dashboard ya está abierto" | Ya hay uno en marcha; se abre el navegador en http://localhost:4310. |
 | "Por bajar" no se actualiza | Pulsa **Actualizar** en el dashboard (hace `git fetch`) o usa `/retomar`. |
+| Quiero quitar los hooks o las reglas globales | Borra las entradas de `hooks/` en `~/.claude/settings.json` y el bloque entre marcas de `~/.claude/CLAUDE.md`. Hay copias en `~/.claude/backups/`. |
+| Algo del hub parece viejo | Pide a Claude que ejecute `hub_health`. |
 | Push rechazado (*non-fast-forward*) | Hay trabajo de otro equipo: `git pull` primero y después push. |
 | "Última sesión" no coincide con lo que hice | Se trabajó sin `/cerrar`: el proyecto saldrá como "ficha sin N commits". Pídele a Claude *"pon al día el STATUS.md de X con los commits que faltan"*. |
 | Conflicto en `STATUS.md` al hacer pull | Pasa si se cerró sesión en los dos equipos sin sincronizar. Quédate con las dos entradas de "Última sesión" y une los pasos. |
@@ -426,7 +472,6 @@ Ideas para próximas versiones, por orden de impacto aproximado.
 
 ### Alto impacto
 
-- **Recordatorio automático de `/cerrar`**: un *hook* de Claude Code al terminar la sesión que avise si hubo cambios en un proyecto y `STATUS.md` no se actualizó. Es el punto débil del sistema, porque depende del hábito.
 - **Botón "Sincronizar todo"** en el dashboard: pull de lo que esté por bajar y push de lo que esté sin subir (solo en avance rápido y con confirmación). Evita olvidar el push antes de cambiar de equipo.
 - **Aviso al cambiar de equipo**: al abrir el dashboard, un banner del tipo "3 proyectos tienen trabajo del otro equipo sin bajar".
 - **Informe semanal**: una herramienta `weekly_report` que junte las sesiones de todos los `STATUS.md` ("qué hice esta semana"). Útil para memorias, tutorías o portfolio.
@@ -441,6 +486,5 @@ Ideas para próximas versiones, por orden de impacto aproximado.
 
 ### Calidad
 
-- **Tests automáticos** del núcleo, sobre todo de la lectura y escritura de `STATUS.md` y de las reglas de seguridad.
 - **Arranque automático del dashboard** al iniciar Windows, o un icono en la bandeja.
-- **Comprobación de versión**: avisar en el dashboard si ProjectHub tiene commits nuevos en GitHub (`git pull` + `npm run instalar`).
+- **`hub_health` en el dashboard**: mostrar en la web lo que Claude ya puede comprobar.

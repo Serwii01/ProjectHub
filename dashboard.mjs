@@ -14,6 +14,13 @@ import {
 const PORT = Number(process.env.PORT || 4310);
 const HOST = "127.0.0.1";
 
+// Escanear cuesta varios segundos (muchas llamadas a git): las peticiones seguidas comparten resultado
+let escaneo = null;
+const proyectos = () => {
+  if (!escaneo || Date.now() - escaneo.at > 5000) escaneo = { at: Date.now(), datos: scanProjects() };
+  return escaneo.datos;
+};
+
 const json = (res, status, data) => {
   res.writeHead(status, { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" });
   res.end(JSON.stringify(data));
@@ -50,8 +57,9 @@ async function api(req, res, url) {
 
   // Las peticiones que cambian algo exigen la cabecera X-Hub: así otra web no puede lanzarlas
   if (req.method !== "GET" && req.headers["x-hub"] !== "1") return json(res, 403, { error: "Prohibido" });
+  if (req.method !== "GET") escaneo = null;
 
-  if (req.method === "GET" && resource === "projects" && !name) return json(res, 200, scanProjects());
+  if (req.method === "GET" && resource === "projects" && !name) return json(res, 200, proyectos());
   if (req.method === "POST" && resource === "fetch") return json(res, 200, await fetchProjects());
 
   // Repos de GitHub no clonados en este equipo

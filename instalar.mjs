@@ -2,19 +2,29 @@
 // Instala ProjectHub en este equipo:
 //  1. crea hub.local.json (carpetas de este equipo) si no existe
 //  2. copia las skills /proyectos, /retomar y /cerrar a ~/.claude/skills con las rutas de este equipo
-//  3. registra el servidor MCP "project-hub" en ~/.claude.json (con copia de seguridad)
-//  4. escanea los proyectos
+//  3. registra el servidor MCP "project-hub" en ~/.claude.json
+//  4. pone las reglas del hub en ~/.claude/CLAUDE.md, entre marcas, sin tocar el resto del archivo
+//  5. añade los hooks SessionStart y Stop a ~/.claude/settings.json, conservando los demás
+//  6. escanea los proyectos
+// Antes de modificar cada archivo de ~/.claude hace una copia en ~/.claude/backups.
 // Uso: npm install && npm run instalar   (se puede repetir sin problema)
 
-import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync, copyFileSync } from "node:fs";
-import { join } from "node:path";
+import { existsSync, mkdirSync, readFileSync, writeFileSync, copyFileSync } from "node:fs";
+import { basename, join } from "node:path";
 import { homedir } from "node:os";
-import { HUB, loadLocal, scanProjects } from "./lib/hub.mjs";
+import { loadLocal, scanProjects } from "./lib/hub.mjs";
+import { claudeDir, globalBlock, globalFile, hubPath as hub, mergeHooks, renderSkill, settingsFile, skillNames, upsertBlock } from "./lib/instalacion.mjs";
 
 const toPosix = (p) => p.replace(/\\/g, "/");
-const hub = toPosix(HUB);
-const claudeDir = join(homedir(), ".claude");
 const ok = (msg) => console.log(`  ✓ ${msg}`);
+
+function backup(file) {
+  if (!existsSync(file)) return;
+  mkdirSync(join(claudeDir, "backups"), { recursive: true });
+  const dest = join(claudeDir, "backups", `${basename(file).replace(/^\./, "")}.${new Date().toISOString().replace(/[:.]/g, "-")}`);
+  copyFileSync(file, dest);
+  ok(`copia de seguridad en ${toPosix(dest)}`);
+}
 
 console.log(`\nInstalando ProjectHub desde ${hub}\n`);
 
@@ -30,25 +40,17 @@ const missing = local.roots.filter((r) => !existsSync(r));
 if (missing.length) console.log(`  ! No existen: ${missing.join(", ")} — edita hub.local.json si tus proyectos están en otro sitio.`);
 
 // 2. Skills
-for (const name of readdirSync(join(HUB, "skills"))) {
-  const src = join(HUB, "skills", name, "SKILL.md");
-  if (!existsSync(src)) continue;
+for (const name of skillNames()) {
   const dest = join(claudeDir, "skills", name);
   mkdirSync(dest, { recursive: true });
-  writeFileSync(join(dest, "SKILL.md"), readFileSync(src, "utf8").replaceAll("{{HUB}}", hub));
+  writeFileSync(join(dest, "SKILL.md"), renderSkill(name));
   ok(`skill /${name}`);
 }
 
 // 3. Servidor MCP a nivel de usuario
 const configFile = join(homedir(), ".claude.json");
-let config = {};
-if (existsSync(configFile)) {
-  mkdirSync(join(claudeDir, "backups"), { recursive: true });
-  const backup = join(claudeDir, "backups", `claude.json.${new Date().toISOString().replace(/[:.]/g, "-")}`);
-  copyFileSync(configFile, backup);
-  config = JSON.parse(readFileSync(configFile, "utf8"));
-  ok(`copia de seguridad de ~/.claude.json en ${toPosix(backup)}`);
-}
+backup(configFile);
+const config = existsSync(configFile) ? JSON.parse(readFileSync(configFile, "utf8")) : {};
 config.mcpServers = {
   ...config.mcpServers,
   "project-hub": { type: "stdio", command: process.execPath, args: [`${hub}/mcp-server.mjs`], env: {} },
@@ -56,7 +58,18 @@ config.mcpServers = {
 writeFileSync(configFile, JSON.stringify(config, null, 2));
 ok("servidor MCP project-hub registrado en Claude Code");
 
-// 4. Primer escaneo
+// 4. Reglas globales
+backup(globalFile);
+writeFileSync(globalFile, upsertBlock(existsSync(globalFile) ? readFileSync(globalFile, "utf8") : "", globalBlock()));
+ok("reglas del hub en ~/.claude/CLAUDE.md");
+
+// 5. Hooks
+backup(settingsFile);
+const settings = existsSync(settingsFile) ? JSON.parse(readFileSync(settingsFile, "utf8")) : {};
+writeFileSync(settingsFile, JSON.stringify(mergeHooks(settings), null, 2) + "\n");
+ok("hooks SessionStart y Stop en ~/.claude/settings.json");
+
+// 6. Primer escaneo
 const { projects } = scanProjects();
 ok(`${projects.length} proyectos encontrados en este equipo${projects.length ? ": " + projects.map((p) => p.name).join(", ") : ""}`);
 

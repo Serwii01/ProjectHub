@@ -5,7 +5,8 @@
     "scan": "node scan.mjs",
     "dashboard": "node dashboard.mjs --open",
     "mcp": "node mcp-server.mjs",
-    "instalar": "node instalar.mjs"
+    "instalar": "node instalar.mjs",
+    "test": "node --test"
   },
   "description": "Centro de control de mis proyectos para Claude Code",
   "dependencies": {
