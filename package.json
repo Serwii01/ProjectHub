@@ -1,17 +1,44 @@
 {
-  "name": "project-hub",
-  "version": "1.0.0",
+  "name": "projecthub",
+  "version": "2.0.0",
+  "description": "Tus proyectos y dónde los dejaste, al alcance de cualquier IA: servidor MCP, CLI y dashboard local",
+  "type": "module",
+  "bin": {
+    "projecthub": "bin/projecthub.mjs"
+  },
+  "files": [
+    "bin/",
+    "lib/",
+    "hooks/",
+    "skills/",
+    "templates/",
+    "public/",
+    "mcp-server.mjs",
+    "dashboard.mjs",
+    "instalar.mjs",
+    "scan.mjs"
+  ],
   "scripts": {
     "scan": "node scan.mjs",
     "dashboard": "node dashboard.mjs --open",
     "mcp": "node mcp-server.mjs",
     "instalar": "node instalar.mjs",
+    "doctor": "node bin/projecthub.mjs doctor",
     "test": "node --test"
   },
-  "description": "Centro de control de mis proyectos para Claude Code",
+  "engines": {
+    "node": ">=20"
+  },
+  "keywords": ["mcp", "model-context-protocol", "ai", "claude", "cursor", "codex", "gemini", "projects", "git", "dashboard"],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Serwii01/ProjectHub.git"
+  },
+  "homepage": "https://github.com/Serwii01/ProjectHub#readme",
+  "bugs": "https://github.com/Serwii01/ProjectHub/issues",
+  "license": "MIT",
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.32.2",
     "zod": "^4.6.7"
-  },
-  "type": "module"
+  }
 }

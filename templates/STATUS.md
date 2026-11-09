@@ -1,6 +1,6 @@
 # Estado del proyecto
 
-> Lo mantiene Claude con `/cerrar`. Es la memoria de trabajo: dónde se quedó y qué viene después.
+> Lo mantiene tu IA con ProjectHub (al cerrar la sesión). Es la memoria de trabajo: dónde se quedó y qué viene después.
 
 ## Estado actual
 <!-- 2–4 líneas: en qué fase está, qué funciona, qué no -->

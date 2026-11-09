@@ -6,7 +6,7 @@ import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "nod
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
-  computeAvisos, lintClaudeMd, lintStatus, readProjectFile, readStatus, repoSlug, resolveName, safePath, siguienteAccion, toggleStep, updateStatus,
+  computeAvisos, lintContext, lintStatus, readProjectFile, readStatus, repoSlug, resolveName, safePath, siguienteAccion, toggleStep, updateStatus,
 } from "../lib/hub.mjs";
 import { mergeHooks, upsertBlock } from "../lib/instalacion.mjs";
 
@@ -143,7 +143,7 @@ test("seguridad: bloquea .env, claves y rutas fuera del proyecto", () => {
   }
 });
 
-const base = { name: "x", branch: "main", ahead: 0, behind: 0, uncommitted: 0, hasStatusMd: true, hasClaudeMd: true, prioridad: "media", nextSteps: ["Hacer la cosa pendiente"], lastCommit: { daysAgo: 2 } };
+const base = { name: "x", branch: "main", ahead: 0, behind: 0, uncommitted: 0, hasStatusMd: true, hasContextFile: true, prioridad: "media", nextSteps: ["Hacer la cosa pendiente"], lastCommit: { daysAgo: 2 } };
 const codigos = (p) => computeAvisos(p).map((a) => a.codigo);
 
 test("avisos: proyecto al día no tiene ninguno y sigue con su paso", () => {
@@ -185,12 +185,12 @@ test("calidad de fichas", () => {
   const m = lintStatus({ text: "### AAAA-MM-DD", estado: "", steps: [{ done: false, text: "Mejorar todo" }] });
   assert.equal(m.length, 3);
   assert.equal(lintStatus({ text: "", estado: "x", steps: [] })[0], "No hay siguientes pasos pendientes.");
-  assert.equal(lintClaudeMd("# Proyecto\nTexto suelto.").length, 1);
-  assert.equal(lintClaudeMd("## Comandos\nnpm run dev").length, 0);
+  assert.equal(lintContext("# Proyecto\nTexto suelto.").length, 1);
+  assert.equal(lintContext("## Comandos\nnpm run dev").length, 0);
 });
 
 test("upsertBlock conserva lo demás y no duplica", () => {
-  const bloque = (t) => `<!-- project-hub:inicio (lo genera npm run instalar; no editar a mano) -->\n${t}\n<!-- project-hub:fin -->`;
+  const bloque = (t) => `<!-- project-hub:inicio (lo genera el instalador de ProjectHub; no editar a mano) -->\n${t}\n<!-- project-hub:fin -->`;
   const uno = upsertBlock("# Mis notas\nHola\n", bloque("v1"));
   assert.ok(uno.startsWith("# Mis notas\nHola\n"));
   const dos = upsertBlock(uno + "\nFinal\n", bloque("v2"));

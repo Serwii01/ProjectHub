@@ -42,12 +42,24 @@ const readBody = (req) =>
 // Lanza programas sin esperar a que terminen
 const launch = (cmd, args, opts = {}) => spawn(cmd, args, { detached: true, stdio: "ignore", ...opts }).unref();
 
+const WIN = process.platform === "win32";
+const MAC = process.platform === "darwin";
+
+// Abre una URL o una carpeta con el programa por defecto del sistema
+function openDefault(target) {
+  if (WIN) launch("cmd.exe", ["/c", "start", "", target]);
+  else launch(MAC ? "open" : "xdg-open", [target]);
+}
+
 function openIn(project, app) {
-  const winPath = project.path.replace(/\//g, "\\");
-  if (app === "vscode") launch("code", [winPath], { shell: true });
-  else if (app === "explorer") launch("explorer.exe", [winPath]);
-  else if (app === "terminal") launch("cmd.exe", ["/c", "start", "", "wt.exe", "-d", winPath], { shell: false });
-  else if (app === "github" && project.remote) launch("cmd.exe", ["/c", "start", "", project.remote.replace(/\.git$/, "")]);
+  const dir = WIN ? project.path.replace(/\//g, "\\") : project.path;
+  if (app === "vscode") launch("code", [`"${dir}"`], { shell: true });
+  else if (app === "explorer") WIN ? launch("explorer.exe", [dir]) : openDefault(dir);
+  else if (app === "terminal") {
+    if (WIN) launch("cmd.exe", ["/c", "start", "", "wt.exe", "-d", dir]);
+    else if (MAC) launch("open", ["-a", "Terminal", dir]);
+    else launch("x-terminal-emulator", [], { cwd: dir });
+  } else if (app === "github" && project.remote) openDefault(project.remote.replace(/\.git$/, "").replace(/^git@([^:]+):/, "https://$1/"));
   else throw new Error("Aplicación no soportada.");
 }
 
@@ -116,11 +128,11 @@ const server = createServer(async (req, res) => {
 server.on("error", (e) => {
   if (e.code === "EADDRINUSE") {
     console.log(`El dashboard ya está abierto en http://localhost:${PORT}`);
-    if (process.argv.includes("--open")) launch("cmd.exe", ["/c", "start", "", `http://localhost:${PORT}`]);
+    if (process.argv.includes("--open")) openDefault(`http://localhost:${PORT}`);
   } else console.error(e);
 });
 
 server.listen(PORT, HOST, () => {
   console.log(`ProjectHub dashboard en http://localhost:${PORT}  (Ctrl+C para cerrar)`);
-  if (process.argv.includes("--open")) launch("cmd.exe", ["/c", "start", "", `http://localhost:${PORT}`]);
+  if (process.argv.includes("--open")) openDefault(`http://localhost:${PORT}`);
 });

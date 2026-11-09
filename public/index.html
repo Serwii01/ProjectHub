@@ -357,7 +357,7 @@ function render() {
         <p>${inlineMd(r.nextSteps[0])}</p>
       </div>
       <div class="actions">
-        <button class="btn primary" data-copy="/retomar ${esc(r.name)}">${ICON.claude} Copiar /retomar</button>
+        <button class="btn primary" data-copy="Retomemos el proyecto ${esc(r.name)}">${ICON.claude} Copiar «retomar»</button>
         <button class="btn" data-open="vscode" data-p="${esc(r.name)}">${ICON.code} VS Code</button>
         <button class="btn" data-detail="${esc(r.name)}">Ver detalles</button>
       </div>
@@ -435,7 +435,7 @@ function card(p) {
     <div class="badges">${badges(p)}</div>
     ${p.nextSteps.length ? `<div class="next"><div class="lbl">Siguiente paso</div>${inlineMd(p.nextSteps[0])}${more}</div>` : ""}
     <div class="card-actions">
-      <button class="btn sm" data-copy="/retomar ${esc(p.name)}" title="Copia el comando para pegarlo en Claude Code">${ICON.claude} /retomar</button>
+      <button class="btn sm" data-copy="Retomemos el proyecto ${esc(p.name)}" title="Copia la petición para pegarla en tu IA">${ICON.claude} Retomar</button>
       <button class="btn sm ghost" data-open="vscode" data-p="${esc(p.name)}" title="Abrir en VS Code">${ICON.code}</button>
       <button class="btn sm ghost" data-open="explorer" data-p="${esc(p.name)}" title="Abrir carpeta">${ICON.folder}</button>
       <button class="btn sm ghost" data-open="terminal" data-p="${esc(p.name)}" title="Abrir terminal aquí">${ICON.term}</button>
@@ -479,8 +479,8 @@ function section(md, name) {
 }
 
 function renderDrawer() {
-  const { project: p, claudeMd, statusMd, git, todos, avisos, siguienteAccion } = state.detail;
-  const tabs = [["resumen", "Resumen"], ["git", "Git"], ["docs", "CLAUDE.md"], ["todos", `TODOs${todos.length ? ` (${todos.length})` : ""}`]];
+  const { project: p, contextMd, contextFile, statusMd, git, todos, avisos, siguienteAccion } = state.detail;
+  const tabs = [["resumen", "Resumen"], ["git", "Git"], ["docs", contextFile || "Contexto"], ["todos", `TODOs${todos.length ? ` (${todos.length})` : ""}`]];
   $("#drawer").innerHTML = `
     <div class="d-head">
       <div class="d-title">
@@ -490,7 +490,7 @@ function renderDrawer() {
       </div>
       <div class="d-path">${esc(p.path)}</div>
       <div class="d-actions">
-        <button class="btn sm primary" data-copy="/retomar ${esc(p.name)}">${ICON.claude} Copiar /retomar</button>
+        <button class="btn sm primary" data-copy="Retomemos el proyecto ${esc(p.name)}">${ICON.claude} Copiar «retomar»</button>
         <button class="btn sm" data-open="vscode" data-p="${esc(p.name)}">${ICON.code} VS Code</button>
         <button class="btn sm" data-open="explorer" data-p="${esc(p.name)}">${ICON.folder} Carpeta</button>
         <button class="btn sm" data-open="terminal" data-p="${esc(p.name)}">${ICON.term} Terminal</button>
@@ -498,7 +498,7 @@ function renderDrawer() {
       </div>
       <div class="tabs">${tabs.map(([id, l]) => `<button class="tab ${state.tab === id ? "active" : ""}" data-tab="${id}">${l}</button>`).join("")}</div>
     </div>
-    <div class="d-body">${tabBody(state.tab, { p, claudeMd, statusMd, git, todos, avisos, siguienteAccion })}</div>`;
+    <div class="d-body">${tabBody(state.tab, { p, contextMd, statusMd, git, todos, avisos, siguienteAccion })}</div>`;
 }
 
 // Los mismos avisos que recibe Claude. La ficha desactualizada tiene su propio recuadro.
@@ -509,9 +509,9 @@ function avisosHtml(avisos, siguienteAccion) {
     ${lista.length ? `<div class="section"><div class="h">Avisos</div><ul class="avisos">${lista.map((a) => `<li class="${esc(a.nivel)}"><strong>${inlineMd(a.mensaje)}</strong>${a.accion !== a.mensaje ? `<span>${inlineMd(a.accion)}</span>` : ""}</li>`).join("")}</ul></div>` : ""}`;
 }
 
-function tabBody(tab, { p, claudeMd, statusMd, git, todos, avisos, siguienteAccion }) {
+function tabBody(tab, { p, contextMd, statusMd, git, todos, avisos, siguienteAccion }) {
   if (tab === "resumen") {
-    if (!statusMd) return `${avisosHtml(avisos, siguienteAccion)}<p class="hint">Abre el proyecto con Claude Code y escribe <code>/retomar ${esc(p.name)}</code>: te ofrecerá crear su ficha analizando el repo.</p>`;
+    if (!statusMd) return `${avisosHtml(avisos, siguienteAccion)}<p class="hint">Dile a tu IA <code>Retomemos el proyecto ${esc(p.name)}</code>: te ofrecerá crear su ficha analizando el repo.</p>`;
     const steps = parseSteps(statusMd);
     const sesiones = section(statusMd, "Última sesión");
     const last = p.lastCommit;
@@ -522,7 +522,7 @@ function tabBody(tab, { p, claudeMd, statusMd, git, todos, avisos, siguienteAcci
         <p>Después de la última vez que se guardó <code>STATUS.md</code> (${fecha(p.statusUpdatedAt)}) hay <strong>${p.unloggedCount} ${p.unloggedCount === 1 ? "commit" : "commits"}</strong> que no aparecen en «Última sesión». Seguramente se trabajó sin hacer <code>/cerrar</code>.</p>
         <ul class="log">${p.unloggedCommits.slice(0, 8).map((c) => `<li><span class="h">${esc(c.hash)}</span><span class="d">${fecha(c.at)}</span><span>${esc(c.message)}</span></li>`).join("")}</ul>
         ${p.unloggedCount > 8 ? `<p class="hint">…y ${p.unloggedCount - 8} más (pestaña Git).</p>` : ""}
-        <button class="btn sm primary" data-copy="Pon al día el STATUS.md de ${esc(p.name)} con los commits que faltan">${ICON.claude} Copiar petición para Claude</button>
+        <button class="btn sm primary" data-copy="Pon al día el STATUS.md de ${esc(p.name)} con los commits que faltan">${ICON.claude} Copiar petición para la IA</button>
       </div>` : "";
     return `${avisosHtml(avisos, siguienteAccion)}${stale}${actividad}
       <div class="section"><div class="h">Estado actual</div><div class="estado md">${md(section(statusMd, "Estado actual")) || "—"}</div></div>
@@ -542,7 +542,7 @@ function tabBody(tab, { p, claudeMd, statusMd, git, todos, avisos, siguienteAcci
         </div>
       </div>
       <div class="section">
-        <div class="claude-box">${ICON.claude}<div>Para trabajar en él con Claude, pega <code>/retomar ${esc(p.name)}</code> en Claude Code. Al terminar, <code>/cerrar</code> actualiza esta ficha.</div></div>
+        <div class="claude-box">${ICON.claude}<div>Para trabajar en él, dile a tu IA <code>Retomemos el proyecto ${esc(p.name)}</code> (en Claude Code, <code>/retomar ${esc(p.name)}</code>). Al terminar, «cerramos la sesión» o <code>/cerrar</code> actualiza esta ficha.</div></div>
       </div>`;
   }
   if (tab === "git") {
@@ -553,7 +553,7 @@ function tabBody(tab, { p, claudeMd, statusMd, git, todos, avisos, siguienteAcci
       <div class="section"><div class="h">Últimos commits</div><ul class="log">${log}</ul></div>
       <div class="section"><div class="h">Ramas</div><pre>${esc(git.branches)}</pre></div>`;
   }
-  if (tab === "docs") return claudeMd ? `<div class="md">${md(claudeMd)}</div>` : `<p class="hint">Sin CLAUDE.md.</p>`;
+  if (tab === "docs") return contextMd ? `<div class="md">${md(contextMd)}</div>` : `<p class="hint">Sin archivo de contexto (AGENTS.md o CLAUDE.md).</p>`;
   if (tab === "todos") return todos.length ? `<pre>${esc(todos.join("\n"))}</pre>` : `<p class="hint">No hay TODO ni FIXME en el código.</p>`;
 }
 
@@ -615,7 +615,7 @@ document.addEventListener("click", async (e) => {
     } catch (err) { toast(err.message); }
     return;
   }
-  if (t.dataset.copy) { e.stopPropagation(); return copy(t.dataset.copy, `Copiado: ${t.dataset.copy} — pégalo en Claude Code`); }
+  if (t.dataset.copy) { e.stopPropagation(); return copy(t.dataset.copy, `Copiado: ${t.dataset.copy} — pégalo en tu IA`); }
   if (t.dataset.open) {
     e.stopPropagation();
     try { await send(`projects/${encodeURIComponent(t.dataset.p)}/open`, "POST", { app: t.dataset.open }); toast("Abriendo…"); } catch (err) { toast(err.message); }

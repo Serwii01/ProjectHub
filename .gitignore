@@ -1,9 +1,11 @@
 node_modules/
 
-# Propio de cada equipo (rutas y token)
+# Datos del usuario: desde la versión 2 viven en ~/.projecthub, no en el repo.
+# Estos son restos de la versión 1; el instalador los migra y ya no se usan.
+hub.config.json
 hub.local.json
 .cache/
-
-# Generados por scan.mjs en cada escaneo
 projects.json
 PROJECTS.md
+
+*.tgz

@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Escanea las carpetas de hub.config.json, detecta repos git y genera
+// Escanea las carpetas de local.json, detecta repos git y genera en la carpeta de datos
 // projects.json (para Claude) y PROJECTS.md (para leer de un vistazo).
 // Uso: node scan.mjs [--json]   (--json imprime el registro por stdout)
 
