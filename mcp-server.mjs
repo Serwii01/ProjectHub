@@ -11,7 +11,7 @@ import { z } from "zod";
 import {
   HUB, VERSION, scanProjects, findProject, getContext, listFiles, readProjectFile,
   searchProjects, gitSummary, updateStatus, loadConfig, saveConfig,
-  remoteOnlyProjects, cloneProject, fetchProjects, workReport, saveHandoff, saveMachineState,
+  remoteOnlyProjects, cloneProject, fetchProjects, workReport, saveHandoff, saveMachineState, searchNotes,
 } from "./lib/hub.mjs";
 import { codeHash, hubHealth, skillPrompt } from "./lib/instalacion.mjs";
 import { briefContext, projectMap, projectsTable, recordUsage, syncData } from "./lib/resumen.mjs";
@@ -28,7 +28,7 @@ const server = new McpServer(
       "(relevo a medias, commits por bajar, trabajo sin subir en otro equipo, archivos que no se editan a mano). Atiende primero los avisos de nivel alto. " +
       "Las respuestas son breves a propósito: pide más (detalle, contexto, get_project_map, un rango de líneas) solo cuando lo necesites. " +
       "Si una herramienta dice que un nombre es ambiguo, pregunta al usuario; no elijas tú. Si no está clonado pero sí en GitHub, ofrece clone_project. " +
-      "Para consultar otro proyecto usa search_projects y read_project_file. " +
+      "Para consultar otro proyecto usa search_notes (decisiones y sesiones anotadas) antes que search_projects y read_project_file (código). " +
       "Al terminar un bloque de trabajo, guarda el progreso con update_status. Si la conversación se va a quedar sin contexto o el usuario va a seguir en otro chat u otro equipo " +
       "con trabajo a medias, llama antes a save_handoff. " +
       "Este servidor no hace commit, push ni pull en los proyectos: hazlos tú con tus herramientas y solo con confirmación del usuario; nunca force push. " +
@@ -194,6 +194,26 @@ tool(
 );
 
 tool(
+  "search_notes",
+  {
+    title: "Buscar en lo anotado",
+    description:
+      "Busca en lo que ya está escrito sobre los proyectos: decisiones y su porqué, problemas conocidos, estado y sesiones de trabajo (también las antiguas). " +
+      "Úsalo antes de buscar en el código para «¿por qué hice esto así?», «¿cómo resolví X?» o «¿cuándo cambié Y?»: es mucho más barato. Encaja las notas que contienen todas las palabras.",
+    inputSchema: {
+      query: z.string().describe("Palabras que debe contener la nota, p. ej. 'login sesiones'"),
+      project: projectArg.optional().describe("Limitar a un proyecto; si se omite, busca en todos"),
+    },
+    annotations: { readOnlyHint: true },
+  },
+  ({ query, project }) => {
+    const results = searchNotes(query, { project });
+    if (!results.length) return "Nada anotado con esas palabras. Prueba con menos palabras o busca en el código con search_projects.";
+    return results.map((r) => `## ${r.project} (${r.total}${r.total > r.notas.length ? `, se muestran ${r.notas.length}` : ""})\n${r.notas.map((n) => `- ${n}`).join("\n")}`).join("\n\n");
+  },
+);
+
+tool(
   "git_summary",
   {
     title: "Resumen git",
@@ -226,7 +246,7 @@ tool(
   },
   ({ project, nuevos_pasos, ...rest }) => {
     const p = findProject(project);
-    const status = updateStatus(p, { ...rest, nuevosPasos: nuevos_pasos ?? [] });
+    const status = updateStatus(p, { ...rest, nuevosPasos: nuevos_pasos ?? [], idioma: loadConfig().idioma });
     const actual = findProject(p.name);
     saveMachineState([actual]);
     subirConfig();

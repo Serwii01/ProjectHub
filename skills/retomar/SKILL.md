@@ -52,6 +52,6 @@ En el idioma del usuario, en este orden y sin relleno:
 
 - No hagas pull, commit ni push sin confirmación.
 - No empieces a trabajar hasta que el usuario responda.
-- Para consultar otro proyecto, usa `search_projects` y `read_project_file` (con `desde` y `hasta` en archivos grandes), no rutas a mano.
+- Para consultar otro proyecto, usa `search_notes` (lo anotado) antes que `search_projects` y `read_project_file` (con `desde` y `hasta` en archivos grandes), no rutas a mano.
 - Si la conversación se alarga y queda trabajo a medias, `save_handoff` antes de que se acabe el contexto.
 - Al terminar el trabajo, recuerda `/cerrar`.

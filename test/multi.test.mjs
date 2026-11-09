@@ -206,7 +206,7 @@ test("el servidor MCP arranca y responde por stdio con herramientas y prompts", 
     assert.match(client.getInstructions(), /get_project_context/);
     const tools = (await client.listTools()).tools.map((t) => t.name);
     for (const t of ["list_projects", "get_project_context", "update_status", "work_report", "hub_health"]) assert.ok(tools.includes(t), t);
-    for (const t of ["save_handoff", "get_project_map"]) assert.ok(tools.includes(t), t);
+    for (const t of ["save_handoff", "get_project_map", "search_notes"]) assert.ok(tools.includes(t), t);
     assert.deepEqual((await client.listPrompts()).prompts.map((p) => p.name).sort(), ["cerrar", "proyectos", "relevo", "retomar"]);
     const prompt = await client.getPrompt({ name: "retomar", arguments: { proyecto: "mi-web" } });
     assert.match(prompt.messages[0].content.text, /«mi-web»[\s\S]*get_project_context/);
@@ -243,6 +243,8 @@ test("el servidor MCP arranca y responde por stdio con herramientas y prompts", 
     assert.equal(JSON.parse(await llamar("get_project_context", { project: "mi" })).relevo, undefined);
 
     assert.match(await llamar("get_project_map", { project: "mi" }), /^Mapa de mi-web/);
+    assert.match(await llamar("search_notes", { query: "login sesiones" }), /^## mi-web \(1\)\n- Sesión \d{4}-\d{2}-\d{2}: Login con sesiones terminado\.$/);
+    assert.match(await llamar("search_notes", { query: "kubernetes" }), /^Nada anotado/);
     const mal = await client.callTool({ name: "get_project_context", arguments: { project: "no-existe" } });
     assert.ok(mal.isError);
   } finally {

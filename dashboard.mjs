@@ -8,8 +8,9 @@ import { join } from "node:path";
 import { spawn } from "node:child_process";
 import {
   HUB, scanProjects, findProject, getContext, toggleStep, addStep, loadConfig, saveConfig,
-  remoteOnlyProjects, cloneProject, hideRepo, fetchProjects,
+  remoteOnlyProjects, cloneProject, hideRepo, fetchProjects, syncPlan, runSyncPlan,
 } from "./lib/hub.mjs";
+import { syncData } from "./lib/resumen.mjs";
 
 const PORT = Number(process.env.PORT || 4310);
 const HOST = "127.0.0.1";
@@ -73,6 +74,19 @@ async function api(req, res, url) {
 
   if (req.method === "GET" && resource === "projects" && !name) return json(res, 200, proyectos());
   if (req.method === "POST" && resource === "fetch") return json(res, 200, await fetchProjects());
+
+  // Sincronizar todo: GET enseña el plan; POST lo ejecuta (solo avance rápido) y sincroniza la configuración del hub.
+  // Es la única vía por la que el hub hace pull o push en los proyectos, y solo porque el usuario lo pide y confirma aquí.
+  if (resource === "sync") {
+    if (req.method === "GET") return json(res, 200, syncPlan(proyectos().projects));
+    if (req.method === "POST") {
+      await fetchProjects();
+      const { acciones, omitidos } = syncPlan(scanProjects({ write: false }).projects);
+      const resultados = await runSyncPlan(acciones);
+      const config = await syncData().catch((e) => ({ activo: true, ok: false, error: e.message }));
+      return json(res, 200, { resultados, omitidos, config });
+    }
+  }
 
   // Repos de GitHub no clonados en este equipo
   if (resource === "github") {

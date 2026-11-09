@@ -102,6 +102,10 @@
   .badge.warn { background: var(--warn-soft); color: var(--warn); }
   .badge.danger { background: var(--danger-soft); color: var(--danger); }
   .badge.ok { background: var(--ok-soft); color: var(--ok); }
+  /* Aviso de trabajo que no está en este equipo */
+  .banner { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; background: var(--danger-soft); color: var(--danger); border-radius: var(--radius); padding: 12px 14px; margin: 0 0 16px; font-size: 14px; }
+  .banner ul { margin: 0; padding-left: 18px; flex: 1 1 320px; }
+  .banner .btn { margin-left: auto; }
   .next { background: var(--surface-2); border-radius: 9px; padding: 9px 11px; font-size: 13px; }
   .next .lbl { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .05em; color: var(--faint); }
   .next .more { color: var(--faint); font-size: 12px; }
@@ -201,7 +205,7 @@
     .brand span { display: none; }
     .brand { margin-right: 0; }
     .search { flex: 1 1 auto; }
-    #refresh .lbl { display: none; }
+    #refresh .lbl, #syncAll .lbl { display: none; }
   }
 </style>
 </head>
@@ -221,6 +225,10 @@
       <svg width="15" height="15" viewBox="0 0 16 16" fill="none"><path d="M13.5 8a5.5 5.5 0 1 1-1.6-3.9M13.5 2.5v3h-3" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
       <span class="lbl">Actualizar</span>
     </button>
+    <button class="btn" id="syncAll" title="Baja lo que haya por bajar y sube lo que esté sin subir, solo cuando no hay riesgo, y te lo enseña antes">
+      <svg width="15" height="15" viewBox="0 0 16 16" fill="none"><path d="M5 2.5v9m0 0L2.5 9M5 11.5 7.5 9M11 13.5v-9m0 0L8.5 7M11 4.5 13.5 7" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      <span class="lbl">Sincronizar</span>
+    </button>
   </div>
 </header>
 
@@ -228,6 +236,7 @@
   <h1 id="greeting">Mis proyectos</h1>
   <p class="sub" id="updated">Cargando…</p>
 
+  <div id="banner"></div>
   <div class="stats" id="stats"></div>
   <div id="focus"></div>
 
@@ -311,6 +320,8 @@ function badges(p) {
   if (p.uncommitted) b.push(`<span class="badge warn">${p.uncommitted} sin commit</span>`);
   if (p.ahead) b.push(`<span class="badge warn">${p.ahead} sin subir</span>`);
   if (p.behind) b.push(`<span class="badge danger">${p.behind} por bajar</span>`);
+  for (const e of p.otrosEquipos || []) b.push(`<span class="badge danger" title="Visto el ${esc(e.at.slice(0, 10))}">sin subir en ${esc(e.equipo)}</span>`);
+  if (p.relevo) b.push(`<span class="badge warn" title="Un chat dejó trabajo a medias${p.relevo.fecha ? ` el ${esc(p.relevo.fecha)}` : ""}">relevo pendiente</span>`);
   if (!p.hasStatusMd) b.push(`<span class="badge danger">sin STATUS.md</span>`);
   if (p.statusStale) b.push(`<span class="badge warn" title="Commits hechos después de la última actualización de STATUS.md">ficha sin ${p.unloggedCount} ${p.unloggedCount === 1 ? "commit" : "commits"}</span>`);
   if (!b.length) b.push(`<span class="badge ok">al día</span>`);
@@ -347,6 +358,15 @@ function render() {
     { id: "inactive", n: P.filter(inactive).length, l: "Sin tocar +30 días" },
   ];
   $("#stats").innerHTML = stats.map((s) => `<button class="stat ${state.filter === s.id ? "active" : ""}" data-filter="${s.id}"><div class="n">${s.n}</div><div class="l">${s.l}</div></button>`).join("");
+
+  // Trabajo que no está en este equipo: por bajar del remoto o sin subir en otro equipo
+  const porBajar = P.filter((p) => p.behind);
+  const enOtro = P.filter((p) => p.otrosEquipos?.length);
+  const lineas = [
+    porBajar.length && `<li><b>${porBajar.length} ${porBajar.length === 1 ? "proyecto tiene" : "proyectos tienen"} trabajo sin bajar:</b> ${porBajar.map((p) => `${esc(p.name)} (${p.behind})`).join(", ")}</li>`,
+    ...enOtro.map((p) => `<li><b>${esc(p.name)}:</b> quedó trabajo sin subir en ${p.otrosEquipos.map((e) => esc(e.equipo)).join(", ")}. Súbelo desde allí antes de seguir aquí.</li>`),
+  ].filter(Boolean);
+  $("#banner").innerHTML = lineas.length ? `<div class="banner"><ul>${lineas.join("")}</ul>${porBajar.length ? `<button class="btn sm" data-sync>Sincronizar</button>` : ""}</div>` : "";
 
   const r = recommended();
   $("#focus").innerHTML = r ? `
@@ -668,6 +688,35 @@ $("#refresh").addEventListener("click", async () => {
   await Promise.all([load({ spin: true }), loadRemote({ force: true })]);
   toast("Proyectos actualizados");
 });
+// Sincronizar todo: enseña el plan, pide confirmación y solo entonces baja y sube (en avance rápido)
+async function syncAll() {
+  const btn = $("#syncAll");
+  btn.classList.add("spin");
+  try {
+    await send("fetch", "POST");
+    const plan = await api("sync");
+    const omitidos = plan.omitidos.map((o) => `  · ${o.name}: ${o.motivo}`).join("\n");
+    if (!plan.acciones.length) {
+      await load();
+      return alert(omitidos ? `No hay nada que se pueda sincronizar sin riesgo.\n\nNecesitan que decidas tú:\n${omitidos}` : "Todo está al día: no hay nada por bajar ni por subir.");
+    }
+    const lista = plan.acciones.map((a) => `  · ${a.name}: ${a.accion === "pull" ? `bajar ${a.n}` : `subir ${a.n}`} ${a.n === 1 ? "commit" : "commits"}`).join("\n");
+    if (!confirm(`Se va a hacer esto:\n${lista}${omitidos ? `\n\nNo se tocan (necesitan que decidas tú):\n${omitidos}` : ""}\n\n¿Continuar?`)) return;
+    const r = await send("sync", "POST");
+    const mal = r.resultados.filter((x) => !x.ok);
+    await load();
+    if (mal.length) alert(`No se pudo sincronizar:\n${mal.map((x) => `  · ${x.name}: ${x.error}`).join("\n")}`);
+    else toast(`Sincronizados ${r.resultados.length} ${r.resultados.length === 1 ? "proyecto" : "proyectos"}`);
+    if (r.config?.ok === false) toast(r.config.error);
+  } catch (err) {
+    toast("No se pudo sincronizar: " + err.message);
+  } finally {
+    btn.classList.remove("spin");
+  }
+}
+$("#syncAll").addEventListener("click", syncAll);
+document.addEventListener("click", (e) => { if (e.target.closest("[data-sync]")) syncAll(); });
+
 // Refresca solo al volver a la pestaña (p. ej. después de trabajar con Claude)
 document.addEventListener("visibilitychange", () => { if (!document.hidden) load(); });
 

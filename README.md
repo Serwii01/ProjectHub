@@ -2,6 +2,8 @@
 
 **Tus proyectos y dónde los dejaste, al alcance de cualquier IA.**
 
+Español · [English](README.en.md)
+
 ProjectHub es un servidor [MCP](https://modelcontextprotocol.io), una CLI y un dashboard local. Con él, tu asistente de IA (Claude, Cursor, Copilot, Gemini, Codex…) conoce todos tus repos por su nombre, sabe en qué punto quedó cada uno y te avisa de lo que hay que hacer antes de tocar nada: bajar commits de otro equipo, anotar trabajo sin registrar, no editar archivos generados.
 
 [![tests](https://github.com/Serwii01/ProjectHub/actions/workflows/test.yml/badge.svg)](https://github.com/Serwii01/ProjectHub/actions/workflows/test.yml)
@@ -30,6 +32,7 @@ Cada cosa que una herramienta devuelve ocupa contexto de la conversación, así 
 - **Contexto breve.** Retomar un proyecto devuelve la siguiente acción, los avisos, el estado, los pasos y la última sesión. El `STATUS.md` entero, el log de git o el archivo de contexto se piden aparte.
 - **Panorama en una tabla.** Una línea por proyecto en vez de un objeto con veinte campos.
 - **Mapa del proyecto.** `get_project_map` resume la estructura del repo para que la IA no lo explore a ciegas.
+- **Notas antes que código.** `search_notes` busca en las decisiones, los problemas y las sesiones ya anotadas.
 - **Lecturas acotadas.** Los archivos se leen por rangos de líneas y las búsquedas devuelven pocas coincidencias por proyecto.
 - **Fichas con presupuesto.** El hub avisa cuando un `STATUS.md` pasa de unos 1.500 tokens y mueve las sesiones antiguas a `HISTORY.md`, que no se relee.
 - **Medido.** `projecthub uso` muestra los tokens que ha devuelto cada herramienta, y los tests fijan un máximo.
@@ -74,6 +77,7 @@ Después, **reinicia tu cliente de IA** y pregúntale «¿qué proyectos tengo?�
 | `--clientes a,b` | Registrar solo en esos clientes. `todos` registra aunque no se detecten; `ninguno` no registra en ninguno. |
 | `--sin-extras` | No instalar skills, reglas globales ni hooks de Claude Code. |
 | `--equipo nombre` | Cómo se llama este equipo en los avisos a tus otros equipos. Por defecto, el nombre del sistema. |
+| `--idioma en` | Crear en inglés las fichas `STATUS.md` nuevas. Las que ya existen conservan su idioma. |
 
 ## Clientes compatibles
 
@@ -110,7 +114,7 @@ El servidor lleva dentro todo lo que la IA necesita saber: sus instrucciones, lo
 |---|---|---|
 | Empezar | «¿Qué tengo pendiente?» | Tabla de todos los proyectos, alertas y una recomendación de por dónde seguir. |
 | Retomar | «Retomemos PrestArte» | `git fetch`, avisos (por ejemplo, commits por bajar), lectura de las fichas y resumen con el siguiente paso. Vale un prefijo: «prest». |
-| Durante | «¿Cómo hice el login en PrestArte?» | La IA busca y lee en tus otros proyectos sin que le des rutas. |
+| Durante | «¿Cómo hice el login en PrestArte?» | La IA busca en lo anotado y en el código de tus otros proyectos sin que le des rutas. |
 | Terminar | «Cerramos la sesión» | Anota en `STATUS.md` lo hecho, quita los pasos completados, añade los nuevos y propone commit y push. |
 | Cambiar de chat o de equipo a medias | «Sigo en otro chat» | Deja un relevo con el punto exacto en que queda el trabajo. El siguiente chat lo recibe al retomar. |
 | Repasar | «¿Qué hice esta semana?» | Sesiones anotadas y commits sin anotar de todos los proyectos. |
@@ -128,6 +132,7 @@ Un proyecto sin ficha aparece como «sin STATUS.md». Al retomarlo, la IA se ofr
 | `update_status` | Guarda el progreso en `STATUS.md`: sesión, pasos completados y nuevos, estado, decisiones y problemas. |
 | `save_handoff` | Deja un relevo con el trabajo a medias para otro chat u otro equipo. |
 | `get_project_map` | Estructura del proyecto en pocas líneas. |
+| `search_notes` | Busca en decisiones, problemas y sesiones anotadas de todos los proyectos. |
 | `work_report` | Qué se ha hecho en los últimos días en todos los proyectos. |
 | `search_projects` | Busca texto o una regex en un proyecto o en todos. |
 | `read_project_file`, `list_project_files` | Lee (entero o por rango de líneas) y lista archivos de cualquier proyecto por su ruta relativa. |
@@ -136,7 +141,7 @@ Un proyecto sin ficha aparece como «sin STATUS.md». Al retomarlo, la IA se ofr
 | `clone_project` | Clona un repo de tu cuenta de GitHub y lo añade al hub. |
 | `hub_health` | Comprueba la instalación. Cada problema trae su solución. |
 
-El servidor **nunca hace commit, push, pull ni borra nada**. Esas acciones las hace la IA con sus propias herramientas y pidiéndote confirmación.
+El servidor **nunca hace commit, push, pull ni borra nada en tus proyectos**. Esas acciones las hace la IA con sus propias herramientas y pidiéndote confirmación. Hay dos excepciones, las dos explícitas: `projecthub sync`, para la carpeta de configuración del propio hub, y el botón **Sincronizar** del dashboard, que pulsas y confirmas tú.
 
 ### Avisos
 
@@ -171,6 +176,8 @@ projecthub mcp          Arranca el servidor MCP (lo ejecutan los clientes)
 ## El dashboard
 
 `projecthub dashboard` abre una página local con una tarjeta por proyecto: descripción, prioridad, stack, actividad, estado git y siguiente paso. Desde cada tarjeta se abre el proyecto en VS Code, la terminal, el explorador o GitHub, y se copia la petición para retomarlo con la IA. El panel de detalle permite marcar y añadir pasos y cambiar la prioridad. También lista los repos de GitHub sin clonar, con un botón para clonarlos.
+
+Arriba avisa si hay proyectos con trabajo sin bajar o con trabajo sin subir en otro equipo. El botón **Sincronizar** enseña qué va a hacer y, si lo confirmas, baja lo que hay por bajar y sube lo que está sin subir, solo en avance rápido: las ramas divergidas y los proyectos con cambios sin commit no los toca y te dice por qué.
 
 Lo que cambias en el dashboard se guarda en los mismos archivos que usa la IA.
 
@@ -248,7 +255,7 @@ Es la única carpeta en la que el hub hace commit y push por su cuenta: contiene
 - **Sin salir del proyecto:** no se leen rutas fuera de la carpeta de cada proyecto.
 - **Dashboard solo local:** escucha en `127.0.0.1`, rechaza otros `Host` y exige una cabecera propia en las peticiones que cambian algo.
 - **Clonado restringido:** `clone_project` solo clona repos de tu cuenta de GitHub.
-- **Nada destructivo:** ni el servidor ni el dashboard hacen commit, push, reset ni borrados.
+- **Nada destructivo:** ni el servidor ni el dashboard hacen reset, force push ni borrados. El dashboard solo baja o sube en avance rápido, y solo cuando lo confirmas.
 - **El token** de GitHub solo vive en `local.json`, en tu equipo.
 
 ## Actualizar desde la versión 1
@@ -274,7 +281,7 @@ test/                 tests (npm test)
 ```
 
 ```bash
-npm test          # 43 tests, sin tocar proyectos reales
+npm test          # 48 tests, sin tocar proyectos reales
 npm run doctor    # estado de la instalación
 ```
 

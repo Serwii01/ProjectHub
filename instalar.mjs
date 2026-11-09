@@ -13,6 +13,7 @@
 //   --roots a,b      carpetas donde buscar proyectos (se guardan en local.json)
 //   --github user    cuenta de GitHub de la que listar repos no clonados
 //   --equipo nombre  cómo se llama este equipo en los avisos a tus otros equipos (por defecto, el nombre del sistema)
+//   --idioma es|en   idioma de las fichas STATUS.md que se creen a partir de ahora (por defecto es)
 //   --sin-extras     no instalar skills, reglas globales ni hooks de Claude Code
 
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
@@ -41,6 +42,10 @@ if (Number(process.versions.node.split(".")[0]) < 20) {
 // 1. Datos de este equipo
 const datos = toPosix(ensureData());
 if (arg("roots")) saveLocal({ ...loadLocal(), roots: lista(arg("roots")).map(toPosix) });
+if (arg("idioma")) {
+  if (!["es", "en"].includes(arg("idioma"))) aviso(`Idioma no reconocido: ${arg("idioma")}. Vale es o en.`);
+  else saveConfig({ ...loadConfig(), idioma: arg("idioma") });
+}
 if (arg("equipo")) saveLocal({ ...loadLocal(), equipo: arg("equipo") });
 if (arg("github")) saveConfig({ ...loadConfig(), github: { ...loadConfig().github, user: arg("github") } });
 const local = loadLocal();
