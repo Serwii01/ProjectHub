@@ -3,17 +3,28 @@
 > Lo mantiene Claude con `/cerrar`. Es la memoria de trabajo: dónde se quedó y qué viene después.
 
 ## Estado actual
-Funcionando y en GitHub (`Serwii01/ProjectHub`): registro de proyectos, servidor MCP `project-hub` (10 herramientas), skills, reglas globales, hooks `SessionStart` y `Stop`, dashboard en localhost:4310 e instalador para varios equipos. El hub dice a Claude qué hacer en cada caso con `siguienteAccion` y `avisos`. Instalado en el equipo de clase; en el de casa falta `git pull` + `npm run instalar` y reiniciar Claude Code.
+Versión 2.0 publicada en GitHub (`Serwii01/ProjectHub`, MIT): CLI `projecthub`, servidor MCP válido para ocho clientes de IA, respuestas breves para gastar pocos tokens, relevo entre chats, aviso de trabajo sin subir en otros equipos y dashboard con «Sincronizar». La configuración vive en `~/.projecthub`, no en el repo. Instalada en el equipo de clase; en casa falta `git pull` + `npm run instalar`. La sincronización entre equipos (`projecthub sync`) está sin activar.
 
 ## Siguientes pasos
-- [ ] Botón «Sincronizar todo» en el dashboard (pull/push en avance rápido, con confirmación)
-- [ ] Aviso al abrir el dashboard si hay proyectos con trabajo del otro equipo sin bajar
-- [ ] Informe semanal (`weekly_report`) a partir de las sesiones de todos los STATUS.md
 - [ ] En casa: `git pull` + `npm run instalar` en ProjectHub y reiniciar Claude Code (cambian MCP, skills, reglas globales y hooks)
 - [ ] Confirmar las prioridades de roam, drogedex, cinearchive, drogedex-nave, drogedex-beton y ProjectHub, y ocultar el repo antiguo `PlanifyPlus` (JavaFX) de la lista de no clonados
 - [ ] Comprobar en una sesión real que los hooks `SessionStart` y `Stop` se disparan (solo se han probado ejecutándolos a mano)
+- [ ] Comprobar en GitHub Actions que los tests pasan en Linux y macOS (solo se han ejecutado en Windows)
+- [ ] Reiniciar los clientes de IA y comprobar que `project-hub` aparece en Gemini CLI, VS Code, Antigravity y Claude Desktop
+- [ ] Activar la sincronización entre equipos: crear un repo privado vacío y ejecutar `projecthub sync --remote <url>` en clase y en casa; poner nombre a cada equipo con `projecthub instalar --equipo`
+- [ ] Acortar los STATUS.md de cinearchive, adminscinearchive y roam, que pasan del presupuesto de 1.500 tokens
+- [ ] Traducir al inglés la CLI, el dashboard, los avisos y las descripciones de las herramientas
+- [ ] Publicar el paquete en npm como `projecthub` (hace falta cuenta de npm; hoy se instala desde GitHub)
+- [ ] Borrar la rama local `version-2`, ya fusionada en main
 
 ## Última sesión
+
+### 2026-11-10
+- Versión 2.0: datos del usuario en `~/.projecthub`, CLI `projecthub` e instalador que registra el MCP en Claude Code, Claude Desktop, Cursor, VS Code, Windsurf, Gemini CLI, Antigravity y Codex.
+- Menos tokens: contexto breve por defecto, panorama en tabla, `get_project_map`, lecturas por rango, presupuesto de STATUS.md con `HISTORY.md` y `projecthub uso`. En los 23 proyectos: panorama de ~13.500 a ~1.300 tokens; retomar, de ~2.100 a ~400 de media.
+- Continuidad: `save_handoff` y `/relevo`, aviso `sin_subir_en_otro_equipo`, `projecthub sync` y `search_notes` (decisiones y sesiones de todos los proyectos).
+- Dashboard: botón «Sincronizar» (plan, confirmación, solo avance rápido), aviso de trabajo sin bajar y soporte de macOS y Linux. `work_report` y `projecthub informe`.
+- Fichas en español o inglés (`--idioma en`), `README.en.md`, licencia MIT y CI en tres sistemas. 48 tests. Instalado en este equipo y subido a main.
 
 ### 2026-11-05
 - Reglas globales en `~/.claude/CLAUDE.md` y hooks `SessionStart` y `Stop`: el hub ya no depende de que se use una skill.
@@ -49,11 +60,16 @@ Funcionando y en GitHub (`Serwii01/ProjectHub`): registro de proyectos, servidor
 - Las instrucciones que dependen del estado van en `computeAvisos`, no en las skills, para que las reciban también el hook y el dashboard.
 - El hook `Stop` avisa una vez por sesión y nunca bloquea: se dispara en cada turno y más sería ruido.
 - Un fragmento de `completados` que encaja con varios pasos no quita ninguno: se informa para evitar borrar el paso equivocado.
+- La configuración sale del repo y vive en `~/.projecthub`: así el hub se instala con npm y el repo público no lleva datos de nadie. Entre equipos se sincroniza con `projecthub sync` (un repo privado del usuario).
+- Las respuestas del servidor son breves por defecto y el detalle se pide aparte; cada una tiene un test con su máximo de tokens. Reducir tokens es un objetivo del proyecto, no una optimización.
+- Dos excepciones a «el hub no hace commit ni push»: su propia carpeta de datos (`sync`) y el botón «Sincronizar» del dashboard, que solo hace avance rápido tras confirmación y no se expone por MCP.
+- El relevo vive en `.projecthub/relevo.md` dentro del repo y no en STATUS.md, para que guardarlo no haga pasar por anotados los commits pendientes.
 
 ## Problemas conocidos
-- El repo es público: muestra la lista de proyectos y sus pendientes (no hay rutas ni tokens). Se puede pasar a privado en GitHub.
-- ProjectHub está excluido del propio registro, así que no aparece en el dashboard y su STATUS.md se mantiene a mano.
-- No verificado: los botones «Abrir en VS Code / carpeta / terminal / GitHub» y la apariencia visual del dashboard (las capturas del panel no llegaban a dibujarse).
+- El repo es público. `hub.config.json` (lista de proyectos, sin rutas ni tokens) ya no se versiona, pero sigue en el historial de git.
+- No verificado: los botones «Abrir en VS Code / carpeta / terminal / GitHub» del dashboard.
 - La pestaña Git del detalle solo enseña los últimos 15 commits.
 - Sin token, la API de GitHub limita a 60 peticiones por hora (hay caché de 15 min).
 - Los hooks solo actúan si la sesión está en la carpeta del proyecto; desde otra carpeta quedan las reglas globales y los avisos del MCP.
+- Sin verificar en real: la sincronización entre los dos equipos, el botón «Sincronizar» sobre repos reales, y las rutas de configuración de Cursor, Windsurf, Codex y Antigravity (salen de su documentación).
+- El inglés es parcial: solo las fichas y el README.
