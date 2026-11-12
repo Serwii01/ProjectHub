@@ -62,7 +62,7 @@ Everything a tool returns takes up conversation context, so the server answers w
 - **Brief context.** Resuming a project returns the next action, warnings, status, steps and last session. The full `STATUS.md`, the git log or the context file are separate requests.
 - **Overview as a table.** One line per project instead of an object with twenty fields.
 - **Project map.** `get_project_map` summarises the repo structure so the AI does not explore blindly.
-- **Notes before code.** `search_notes` searches decisions, known issues and past sessions.
+- **Notes before code.** `search` looks first in decisions, known issues and past sessions.
 - **Bounded reads.** Files are read by line range and searches return a few matches per project.
 - **Status files on a budget.** The hub warns when a `STATUS.md` exceeds about 1,500 tokens and moves old sessions to `HISTORY.md`.
 - **Measured.** `projecthub uso` shows the tokens each tool has returned, and the tests enforce limits.
@@ -95,10 +95,9 @@ From then on, when you resume a project on one computer the AI warns you if anot
 | `update_status` | Saves progress to `STATUS.md`. |
 | `save_handoff` | Leaves a handoff with unfinished work for another chat or computer. |
 | `get_project_map` | The project structure in a few lines. |
-| `search_notes` | Searches decisions, issues and sessions across projects. |
-| `search_projects`, `read_project_file`, `list_project_files` | Search, read (whole or by line range) and list files in any project. |
+| `search`, `read_project_file` | Search notes (or code with `en: "codigo"`) and read files, whole or by line range. |
 | `work_report` | What was done in the last days across all projects. |
-| `git_summary`, `set_project_info`, `clone_project`, `hub_health` | Git state, project metadata, cloning from your account, and installation check. |
+| `clone_project` | Clones a repo from your account. Git state is `get_project_context` with `detalle: "git"`; priority and description go through `update_status`; `projecthub doctor` checks the installation. |
 
 The server **never commits, pushes, pulls or deletes anything in your projects**. The AI does that with its own tools, asking you first. The two exceptions are explicit: `projecthub sync` for the hub's own configuration folder, and the dashboard's **Sincronizar** button, which you press and confirm.
 
@@ -115,7 +114,7 @@ The server **never commits, pushes, pulls or deletes anything in your projects**
 ```bash
 git clone https://github.com/Serwii01/ProjectHub.git
 cd ProjectHub
-npm install
+npm ci        # exact versions from package-lock.json, without changing it
 npm test
 ```
 

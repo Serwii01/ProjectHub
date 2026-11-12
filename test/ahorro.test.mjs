@@ -11,7 +11,7 @@ import {
   STATUS_BUDGET, clearHandoff, computeAvisos, findProject, getContext, lintStatus, loadOtherMachines, pendingElsewhere,
   readHandoff, readProjectFile, readStatus, saveHandoff, saveMachineState, scanProjects, searchProjects, updateStatus,
 } from "../lib/hub.mjs";
-import { approxTokens, briefContext, projectMap, projectsTable, recomendado, recordUsage, syncData, syncSetup, usageReport } from "../lib/resumen.mjs";
+import { approxTokens, briefContext, briefText, projectMap, projectsTable, recomendado, recordUsage, syncData, syncSetup, usageReport } from "../lib/resumen.mjs";
 
 const tmp = () => mkdtempSync(join(tmpdir(), "hub-ahorro-"));
 const borrar = (dir) => rmSync(dir, { recursive: true, force: true, maxRetries: 3 });
@@ -51,19 +51,41 @@ test("el contexto breve cuesta una fracción del completo y cabe en su presupues
     const p = findProject("tienda");
     const completo = approxTokens(JSON.stringify(getContext(p)));
     const brief = briefContext(p);
-    const breve = approxTokens(JSON.stringify(brief));
-    assert.ok(breve < 700, `el contexto breve ocupa ~${breve} tokens`);
-    assert.ok(breve < completo * 0.35, `breve ${breve} frente a completo ${completo}`);
-    assert.equal(brief.siguienteAccion, "Seguir con: Integrar la pasarela de pago");
+    const texto = briefText(brief);
+    const breve = approxTokens(texto);
+    assert.ok(breve < 450, `el contexto breve ocupa ~${breve} tokens`);
+    assert.ok(breve < completo * 0.25, `breve ${breve} frente a completo ${completo}`);
+    // Sin avisos, qué hacer es el primer paso, y no se repite en la lista
+    assert.equal(brief.ahora, "Integrar la pasarela de pago");
+    assert.deepEqual(brief.siguientesPasos, ["Revisar la web en móvil"]);
     assert.equal(brief.proyecto.git, "al día");
     assert.equal(brief.ultimaSesion.fecha, "2026-11-09");
-    assert.ok(brief.ultimaSesion.puntos.every((x) => x.length <= 300));
+    assert.ok(brief.ultimaSesion.puntos.every((x) => x.length <= 200));
+    // Ruta, descripción y archivo de contexto solo si la sesión está fuera de la carpeta del proyecto
     assert.equal(brief.contextMd, undefined);
-    assert.equal(brief.proyecto.archivoDeContexto, "AGENTS.md");
+    assert.equal(brief.proyecto.ruta, undefined);
     // Los avisos de mantenimiento (ficha larga…) no ocupan sitio: solo se cuentan
     assert.deepEqual(brief.avisos, []);
-    assert.match(brief.otrosAvisos, /^1 de menor importancia/);
-    assert.match(briefContext(p, { contexto: true }).contextMd, /npm run dev/);
+    assert.equal(brief.otrosAvisos, 1);
+    assert.match(texto, /^ProjectHub: tienda · rama main · al día · prioridad alta · último trabajo \d{4}-\d{2}-\d{2} · Tienda inicial\n/);
+    assert.match(texto, /\nAhora: Integrar la pasarela de pago\nDespués:\n- Revisar la web en móvil\n/);
+    assert.ok(!texto.includes("Avisos"));
+    const fuera = briefContext(p, { contexto: true });
+    assert.match(fuera.contextMd, /npm run dev/);
+    assert.match(briefText(fuera), /\nRuta: .*tienda · Vite\nTienda online\n[\s\S]*--- AGENTS\.md ---\n# Tienda/);
+  });
+});
+
+test("el contexto breve no repite: con avisos, el primero manda y los avisos del hub se ordenan por nivel", async () => {
+  await conHub(({ repo }) => {
+    writeFileSync(join(repo, "nuevo.js"), "x\n");
+    const brief = briefContext(findProject("tienda"));
+    assert.equal(brief.ahora, undefined);
+    assert.deepEqual(brief.siguientesPasos, ["Integrar la pasarela de pago", "Revisar la web en móvil"]);
+    const hub = { nivel: "alto", codigo: "hub_desactualizado", mensaje: "Servidor viejo.", accion: "Reinicia." };
+    const texto = briefText(brief, { avisosHub: [{ ...hub, nivel: "info" }, hub] });
+    assert.match(texto, /\nAvisos \(atiende el primero antes que nada\):\n- \[alto\] Servidor viejo\. → Reinicia\.\n- \[medio\] 1 archivo sin commit\.[^\n]*\n- \[info\] Servidor viejo/);
+    assert.match(texto, /\nSiguientes pasos:\n- Integrar la pasarela de pago\n- Revisar la web en móvil/);
   });
 });
 
@@ -143,6 +165,8 @@ test("relevo: se guarda con lo que hay sin commit, avisa al retomar y se borra a
     assert.equal(p.avisos[0].codigo, "relevo_pendiente");
     assert.match(p.siguienteAccion, /Continúa desde el relevo/);
     assert.match(briefContext(p).relevo, /## Siguiente\nLlamar a la API/);
+    // Con relevo, la última sesión ya no es lo más reciente: solo su fecha
+    assert.deepEqual(briefContext(p).ultimaSesion, { fecha: "2026-11-09" });
     // El relevo no cuenta como trabajo sin anotar
     git(repo, "add", "-A");
     git(repo, "commit", "-q", "-m", "wip", "--", ".projecthub");
@@ -194,7 +218,8 @@ test("pendingElsewhere: lo que quedó sin subir en otros equipos, salvo que ya h
 test("cada equipo anota su trabajo sin subir y los demás lo ven", async () => {
   await conHub(({ datos, repo }) => {
     scanProjects();
-    assert.ok(!existsSync(join(datos, "equipos"))); // nada pendiente: no se escribe nada
+    // Nada pendiente: solo queda anotada la versión del hub de este equipo
+    assert.deepEqual(JSON.parse(readFileSync(join(datos, "equipos", "portatil.json"), "utf8")).proyectos, {});
     writeFileSync(join(repo, "nuevo.txt"), "x");
     scanProjects();
     const mio = JSON.parse(readFileSync(join(datos, "equipos", "portatil.json"), "utf8"));
@@ -263,5 +288,41 @@ test("el consumo de cada herramienta queda registrado", async () => {
       { tool: "get_project_context", llamadas: 2, tokens: 300, media: 150, max: 200 },
       { tool: "list_projects", llamadas: 1, tokens: 10, media: 10, max: 10 },
     ]);
+  });
+});
+
+test("lo que se paga en cada conversación o en cada /comando cabe en su presupuesto", async () => {
+  const { globalBlock, renderSkill, skillNames } = await import("../lib/instalacion.mjs");
+  // Las skills se cargan enteras al usarlas: deben costar menos que la respuesta que piden
+  for (const name of skillNames()) {
+    const t = approxTokens(renderSkill(name));
+    assert.ok(t < 500, `la skill ${name} ocupa ~${t} tokens`);
+  }
+  // El bloque de ~/.claude/CLAUDE.md va en todas las conversaciones de Claude Code, también fuera de los proyectos
+  assert.ok(approxTokens(globalBlock()) < 160, `el bloque global ocupa ~${approxTokens(globalBlock())} tokens`);
+});
+
+test("el hub avisa de sí mismo: servidor viejo y pull del propio hub", async () => {
+  const { avisosHub } = await import("../lib/instalacion.mjs");
+  assert.equal(avisosHub({ loadedHash: "otra-version" })[0].codigo, "hub_desactualizado");
+  const base = { name: "ProjectHub", branch: "main", ahead: 0, behind: 2, uncommitted: 0, hasStatusMd: true, hasContextFile: true, prioridad: "media", nextSteps: [] };
+  assert.match(computeAvisos({ ...base, esHub: true })[0].accion, /npm ci y npm run instalar/);
+  assert.doesNotMatch(computeAvisos(base)[0].accion, /npm run instalar/);
+});
+
+test("statusText: lo que cambió en una línea y solo lo que hay que revisar", async () => {
+  const { statusText } = await import("../lib/resumen.mjs");
+  const cambios = { pasosQuitados: ["a"], pasosAnadidos: [], noEncontrados: [], ambiguos: ["login"], sesionesDescartadas: 1, sesion: "2026-11-12", decisiones: 1 };
+  assert.equal(
+    statusText({ name: "tienda" }, cambios, 4, [{ mensaje: "2 archivos sin commit.", accion: "Pregunta antes de hacer commit." }]),
+    "STATUS.md de tienda guardado: sesión 2026-11-12, 1 paso quitado, 1 decisión. Quedan 4 pasos.\nAmbiguos (encajan con varios pasos; no se han quitado): login\n1 sesión antigua pasada a HISTORY.md.\nGit: 2 archivos sin commit. Pregunta antes de hacer commit.",
+  );
+});
+
+test("cada equipo anota qué versión del hub tiene", async () => {
+  await conHub(({ datos }) => {
+    saveMachineState([{ name: "tienda", ahead: 1, uncommitted: 0, branch: "main", head: "abc" }]);
+    const estado = JSON.parse(readFileSync(join(datos, "equipos", "portatil.json"), "utf8"));
+    assert.equal(estado.hub.version, JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8")).version);
   });
 });

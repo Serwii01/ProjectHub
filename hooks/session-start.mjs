@@ -1,8 +1,11 @@
 #!/usr/bin/env node
-// Hook SessionStart: si la sesión se abre en un proyecto del hub, da a Claude su estado.
+// Hook SessionStart: si la sesión se abre en un proyecto del hub, da a Claude su estado, con el mismo texto
+// que get_project_context. Así /retomar no tiene que volver a pedirlo (lo dicen las reglas y la skill).
 // Nunca debe romper una sesión: ante cualquier problema termina sin decir nada.
 
 import { fetchProjects, projectAt } from "../lib/hub.mjs";
+import { avisosHub } from "../lib/instalacion.mjs";
+import { briefContext, briefText } from "../lib/resumen.mjs";
 import { leerEntrada } from "./entrada.mjs";
 
 try {
@@ -12,15 +15,7 @@ try {
     // Fetch corto: sin conexión, el resumen sale igual con lo que se sabe en local
     await fetchProjects([p], { timeout: 6000 });
     p = projectAt(cwd);
-    const avisos = p.avisos.map((a) => `- [${a.nivel}] ${a.mensaje} → ${a.accion}`);
-    const texto = [
-      `ProjectHub: esta sesión está en el proyecto ${p.name} (rama ${p.branch}).`,
-      `Último trabajo: ${p.lastCommit.date} · ${p.lastCommit.message}.`,
-      p.estadoActual ? `Estado: ${p.estadoActual}` : "",
-      `Siguiente acción: ${p.siguienteAccion}`,
-      avisos.length ? `Avisos:\n${avisos.join("\n")}` : "",
-      "Al terminar un bloque de trabajo, ofrece /cerrar.",
-    ].filter(Boolean).join("\n");
+    const texto = briefText(briefContext(p), { avisosHub: avisosHub() });
     console.log(JSON.stringify({ hookSpecificOutput: { hookEventName: "SessionStart", additionalContext: texto } }));
   }
 } catch {

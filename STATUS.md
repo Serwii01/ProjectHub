@@ -3,21 +3,29 @@
 > Lo mantiene Claude con `/cerrar`. Es la memoria de trabajo: dónde se quedó y qué viene después.
 
 ## Estado actual
-Versión 2.0 publicada en GitHub (`Serwii01/ProjectHub`, MIT): CLI `projecthub`, servidor MCP válido para ocho clientes de IA, respuestas breves para gastar pocos tokens, relevo entre chats, aviso de trabajo sin subir en otros equipos y dashboard con «Sincronizar». La configuración vive en `~/.projecthub`, no en el repo. Instalada en el equipo de clase; en casa falta `git pull` + `npm run instalar`. La sincronización entre equipos (`projecthub sync`) está sin activar.
+Versión 2.0 en GitHub (`Serwii01/ProjectHub`, MIT) con una ronda de ahorro de tokens sin subir: 9 herramientas, contexto breve en texto, skills y reglas globales mínimas, y avisos cuando el hub está desactualizado o sin reinstalar. Instalada en el equipo de clase; falta en el otro equipo. La sincronización entre equipos (`projecthub sync`) sigue sin activar.
 
 ## Siguientes pasos
-- [ ] En casa: `git pull` + `npm run instalar` en ProjectHub y reiniciar Claude Code (cambian MCP, skills, reglas globales y hooks)
 - [ ] Confirmar las prioridades de roam, drogedex, cinearchive, drogedex-nave, drogedex-beton y ProjectHub, y ocultar el repo antiguo `PlanifyPlus` (JavaFX) de la lista de no clonados
-- [ ] Comprobar en una sesión real que los hooks `SessionStart` y `Stop` se disparan (solo se han probado ejecutándolos a mano)
-- [ ] Comprobar en GitHub Actions que los tests pasan en Linux y macOS (solo se han ejecutado en Windows)
 - [ ] Reiniciar los clientes de IA y comprobar que `project-hub` aparece en Gemini CLI, VS Code, Antigravity y Claude Desktop
 - [ ] Activar la sincronización entre equipos: crear un repo privado vacío y ejecutar `projecthub sync --remote <url>` en clase y en casa; poner nombre a cada equipo con `projecthub instalar --equipo`
 - [ ] Acortar los STATUS.md de cinearchive, adminscinearchive y roam, que pasan del presupuesto de 1.500 tokens
 - [ ] Traducir al inglés la CLI, el dashboard, los avisos y las descripciones de las herramientas
 - [ ] Publicar el paquete en npm como `projecthub` (hace falta cuenta de npm; hoy se instala desde GitHub)
 - [ ] Borrar la rama local `version-2`, ya fusionada en main
+- [ ] Reiniciar Claude Code y comprobar que el servidor tiene 9 herramientas y que el hook `Stop` recuerda `/cerrar` en una sesión real (`SessionStart` ya funciona)
+- [ ] En el otro equipo: `git pull`, `npm ci`, `npm run instalar` y reiniciar el cliente de IA
+- [ ] Informe semanal: crear una tarea programada (viernes 14:00) que llame a `work_report` con 7 días; la creación la bloqueó el control de permisos
+- [ ] Tras una semana de uso, revisar `projecthub uso` y recortar la herramienta que más tokens devuelva
 
 ## Última sesión
+
+### 2026-11-12
+- Menos tokens fijos: instrucciones del servidor ~400→170, definiciones de herramientas ~3.500→1.600, bloque global ~420→145 y skills ~1.200→~340, todo con test de máximo.
+- De 14 a 9 herramientas: `git_summary`, `list_project_files`, `search_notes`/`search_projects`, `set_project_info` y `hub_health` pasan a opciones de `get_project_context` (detalle), `get_project_map` (path), `search` (en), `update_status` (prioridad, descripcion) y avisos del hub.
+- Contexto breve en texto (`briefText`): primero los avisos o «Ahora», 3 pasos, estado cortado; media de 525→354 tokens. El hook `SessionStart` da el mismo texto y `/retomar` no lo repite. `update_status` y `save_handoff` responden en 2–4 líneas.
+- Avisos del hub: `hub_desactualizado` (servidor más viejo que su código) y `hub_sin_instalar`; cada equipo anota su versión del hub y `doctor`/`list_projects` avisan de equipos atrasados. `projecthub uso` enseña el coste fijo.
+- Documentación con `npm ci`. CI comprobado en verde en Linux, Windows y macOS (Node 20 y 22). 53 tests; reinstalado en este equipo.
 
 ### 2026-11-10
 - Versión 2.0: datos del usuario en `~/.projecthub`, CLI `projecthub` e instalador que registra el MCP en Claude Code, Claude Desktop, Cursor, VS Code, Windsurf, Gemini CLI, Antigravity y Codex.
@@ -64,6 +72,8 @@ Versión 2.0 publicada en GitHub (`Serwii01/ProjectHub`, MIT): CLI `projecthub`,
 - Las respuestas del servidor son breves por defecto y el detalle se pide aparte; cada una tiene un test con su máximo de tokens. Reducir tokens es un objetivo del proyecto, no una optimización.
 - Dos excepciones a «el hub no hace commit ni push»: su propia carpeta de datos (`sync`) y el botón «Sincronizar» del dashboard, que solo hace avance rápido tras confirmación y no se expone por MCP.
 - El relevo vive en `.projecthub/relevo.md` dentro del repo y no en STATUS.md, para que guardarlo no haga pasar por anotados los commits pendientes.
+- Cada herramienta nueva cabe primero como opción de una existente; lo fijo (instrucciones, definiciones, bloque global, skills) tiene test con máximo de tokens.
+- El contexto breve es texto, no JSON: el primer aviso o la línea «Ahora» dicen qué hacer, sin campo `siguienteAccion` aparte.
 
 ## Problemas conocidos
 - El repo es público. `hub.config.json` (lista de proyectos, sin rutas ni tokens) ya no se versiona, pero sigue en el historial de git.

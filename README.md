@@ -29,15 +29,17 @@ Todo se ejecuta en tu equipo. No hay cuenta, servidor ni telemetría.
 
 Cada cosa que una herramienta devuelve ocupa contexto de la conversación, así que el hub responde con lo justo y da el detalle solo si la IA lo pide:
 
-- **Contexto breve.** Retomar un proyecto devuelve la siguiente acción, los avisos, el estado, los pasos y la última sesión. El `STATUS.md` entero, el log de git o el archivo de contexto se piden aparte.
+- **Contexto breve y en texto.** Retomar un proyecto devuelve los avisos, qué hacer ahora, el estado, tres pasos y la última sesión, sin nada repetido y sin el peso de JSON. El `STATUS.md` entero, el estado de git o el archivo de contexto se piden aparte.
+- **Sin pedirlo dos veces.** En Claude Code, el hook de inicio da ese mismo resumen al abrir la sesión, y `/retomar` no vuelve a pedirlo.
+- **Poco coste fijo.** Nueve herramientas con descripciones cortas, instrucciones breves y skills que solo llevan el procedimiento: las instrucciones de cada caso van en los avisos.
 - **Panorama en una tabla.** Una línea por proyecto en vez de un objeto con veinte campos.
 - **Mapa del proyecto.** `get_project_map` resume la estructura del repo para que la IA no lo explore a ciegas.
-- **Notas antes que código.** `search_notes` busca en las decisiones, los problemas y las sesiones ya anotadas.
+- **Notas antes que código.** `search` busca primero en las decisiones, los problemas y las sesiones ya anotadas.
 - **Lecturas acotadas.** Los archivos se leen por rangos de líneas y las búsquedas devuelven pocas coincidencias por proyecto.
 - **Fichas con presupuesto.** El hub avisa cuando un `STATUS.md` pasa de unos 1.500 tokens y mueve las sesiones antiguas a `HISTORY.md`, que no se relee.
-- **Medido.** `projecthub uso` muestra los tokens que ha devuelto cada herramienta, y los tests fijan un máximo.
+- **Medido.** `projecthub uso` muestra el coste fijo (instrucciones, reglas, skills) y los tokens que ha devuelto cada herramienta; los tests fijan un máximo para todo ello.
 
-En los 23 proyectos del autor, el panorama pasó de unos 13.500 tokens a 1.300, y retomar un proyecto, de 2.100 de media a 400.
+En los proyectos del autor, el panorama pasó de unos 13.500 tokens a 1.300, y retomar un proyecto, de 2.100 de media a 350. Las definiciones de las herramientas bajaron de ~3.500 a ~1.600 tokens y las instrucciones del servidor, de ~400 a ~170.
 
 ## Instalación
 
@@ -53,7 +55,7 @@ O desde el código, si quieres modificarlo:
 ```bash
 git clone https://github.com/Serwii01/ProjectHub.git
 cd ProjectHub
-npm install
+npm ci        # instala las versiones exactas de package-lock.json, sin cambiarlo
 npm run instalar
 ```
 
@@ -128,18 +130,16 @@ Un proyecto sin ficha aparece como «sin STATUS.md». Al retomarlo, la IA se ofr
 | Herramienta | Qué hace |
 |---|---|
 | `list_projects` | Panorama en una tabla: estado git, siguiente paso, avisos que importan hoy, proyecto recomendado y repos de GitHub sin clonar. |
-| `get_project_context` | Lo necesario para retomar un proyecto: `siguienteAccion`, `avisos`, relevo, estado, pasos, última sesión y commits sin anotar o por bajar. Con `contexto` añade el archivo de contexto; con `detalle: "completo"`, todo. |
-| `update_status` | Guarda el progreso en `STATUS.md`: sesión, pasos completados y nuevos, estado, decisiones y problemas. |
+| `get_project_context` | Lo necesario para retomar un proyecto, en texto: avisos (el primero manda), qué hacer ahora, relevo, estado, pasos, última sesión y commits sin anotar o por bajar. Con `contexto` añade la ruta y el archivo de contexto; con `detalle: "git"`, rama, cambios y log (`diff` para el diff); con `detalle: "completo"`, todo. |
+| `update_status` | Guarda el progreso en `STATUS.md`: sesión, pasos completados y nuevos, estado, decisiones y problemas. También cambia la prioridad o la descripción del proyecto. |
 | `save_handoff` | Deja un relevo con el trabajo a medias para otro chat u otro equipo. |
-| `get_project_map` | Estructura del proyecto en pocas líneas. |
-| `search_notes` | Busca en decisiones, problemas y sesiones anotadas de todos los proyectos. |
+| `get_project_map` | Estructura del proyecto en pocas líneas; con `path`, los archivos de una carpeta. |
+| `search` | Busca en lo anotado (decisiones, problemas, sesiones) o, con `en: "codigo"`, en el código de un proyecto o de todos. |
+| `read_project_file` | Lee un archivo, entero o por rango de líneas. |
 | `work_report` | Qué se ha hecho en los últimos días en todos los proyectos. |
-| `search_projects` | Busca texto o una regex en un proyecto o en todos. |
-| `read_project_file`, `list_project_files` | Lee (entero o por rango de líneas) y lista archivos de cualquier proyecto por su ruta relativa. |
-| `git_summary` | Rama, commits sin subir o por bajar, cambios y últimos commits. |
-| `set_project_info` | Cambia la descripción o la prioridad de un proyecto. |
 | `clone_project` | Clona un repo de tu cuenta de GitHub y lo añade al hub. |
-| `hub_health` | Comprueba la instalación. Cada problema trae su solución. |
+
+Si el propio hub está desfasado (el servidor en marcha es más viejo que su código, o las skills no se han reinstalado), los avisos lo dicen delante de los del proyecto. La comprobación completa de la instalación es `projecthub doctor`.
 
 El servidor **nunca hace commit, push, pull ni borra nada en tus proyectos**. Esas acciones las hace la IA con sus propias herramientas y pidiéndote confirmación. Hay dos excepciones, las dos explícitas: `projecthub sync`, para la carpeta de configuración del propio hub, y el botón **Sincronizar** del dashboard, que pulsas y confirmas tú.
 
@@ -298,7 +298,7 @@ npm run doctor    # estado de la instalación
 | Un proyecto no aparece | Debe ser un repo git en el primer nivel de una carpeta de `roots` y no estar en `exclude`. |
 | «No se pudo consultar GitHub» | Sin conexión o límite de la API. Espera o añade `githubToken`. |
 | No salen los repos privados | Hace falta `githubToken` en `local.json`. |
-| Algo parece viejo o roto | `projecthub doctor`, o pide a la IA que llame a `hub_health`. |
+| Algo parece viejo o roto | `projecthub doctor`. |
 | Quitar los extras de Claude Code | Borra las entradas de `hooks` en `~/.claude/settings.json` y el bloque entre marcas de `~/.claude/CLAUDE.md`. |
 
 ## Licencia

@@ -87,9 +87,16 @@ switch (orden) {
     break;
   }
   case "uso": {
-    const { usageReport } = await import("../lib/resumen.mjs");
+    const { INSTRUCTIONS, approxTokens, usageReport } = await import("../lib/resumen.mjs");
+    const { globalBlock, renderSkill, skillNames } = await import("../lib/instalacion.mjs");
+    // Lo fijo: lo que se paga aunque no se use ninguna herramienta
+    console.log("Coste fijo aproximado (tokens)\n");
+    console.log(`  ${"instrucciones del servidor (cada conversación)".padEnd(48)} ${String(approxTokens(INSTRUCTIONS)).padStart(6)}`);
+    console.log(`  ${"reglas en ~/.claude/CLAUDE.md (Claude Code)".padEnd(48)} ${String(approxTokens(globalBlock())).padStart(6)}`);
+    for (const n of skillNames()) console.log(`  ${`skill /${n} (al usarla)`.padEnd(48)} ${String(approxTokens(renderSkill(n))).padStart(6)}`);
+    console.log("  (las definiciones de las herramientas, ~1.600, solo en clientes que no las cargan bajo demanda)\n");
     const filas = usageReport();
-    if (!filas.length) console.log("Aún no hay datos: se registran cuando una IA usa las herramientas.");
+    if (!filas.length) console.log("Aún no hay datos de las herramientas: se registran cuando una IA las usa.");
     else {
       console.log("Tokens aproximados que ha devuelto cada herramienta a la IA\n");
       console.log(`  ${"herramienta".padEnd(22)} ${"llamadas".padStart(8)} ${"media".padStart(7)} ${"máx".padStart(7)} ${"total".padStart(9)}`);

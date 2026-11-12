@@ -200,20 +200,21 @@ test("el servidor MCP arranca y responde por stdio con herramientas y prompts", 
   writeFileSync(join(datos, "local.json"), JSON.stringify({ roots: [join(datos, "proyectos")], cloneDir: join(datos, "proyectos") }));
 
   const client = new Client({ name: "test", version: "0" });
-  const env = { ...process.env, PROJECTHUB_HOME: datos };
+  // El home también apunta a la carpeta temporal: los avisos del hub no deben depender de lo instalado de verdad
+  const env = { ...process.env, PROJECTHUB_HOME: datos, HOME: datos, USERPROFILE: datos };
   await client.connect(new StdioClientTransport({ command: process.execPath, args: [join(HUB, "mcp-server.mjs")], env, stderr: "ignore" }));
   try {
     assert.match(client.getInstructions(), /get_project_context/);
     const tools = (await client.listTools()).tools.map((t) => t.name);
-    for (const t of ["list_projects", "get_project_context", "update_status", "work_report", "hub_health"]) assert.ok(tools.includes(t), t);
-    for (const t of ["save_handoff", "get_project_map", "search_notes"]) assert.ok(tools.includes(t), t);
+    assert.deepEqual(tools.sort(), ["clone_project", "get_project_context", "get_project_map", "list_projects", "read_project_file", "save_handoff", "search", "update_status", "work_report"]);
     assert.deepEqual((await client.listPrompts()).prompts.map((p) => p.name).sort(), ["cerrar", "proyectos", "relevo", "retomar"]);
     const prompt = await client.getPrompt({ name: "retomar", arguments: { proyecto: "mi-web" } });
     assert.match(prompt.messages[0].content.text, /«mi-web»[\s\S]*get_project_context/);
 
-    // Lo que cuesta tener el servidor conectado: las definiciones de las herramientas van en cada conversación
+    // Lo que cuesta tener el servidor conectado: las instrucciones y las definiciones de las herramientas van en cada conversación
     const definiciones = JSON.stringify((await client.listTools()).tools).length / 4;
-    assert.ok(definiciones < 4500, `las definiciones de las herramientas ocupan ~${Math.round(definiciones)} tokens`);
+    assert.ok(definiciones < 1800, `las definiciones de las herramientas ocupan ~${Math.round(definiciones)} tokens`);
+    assert.ok(client.getInstructions().length / 4 < 200, "las instrucciones del servidor pasan de 200 tokens");
 
     const llamar = async (name, args) => (await client.callTool({ name, arguments: args })).content[0].text;
     // Por defecto, una tabla de texto; con detalle, el JSON completo
@@ -223,28 +224,36 @@ test("el servidor MCP arranca y responde por stdio con herramientas y prompts", 
     const lista = JSON.parse(await llamar("list_projects", { actualizar: false, detalle: true }));
     assert.deepEqual(lista.clonados.map((p) => [p.name, p.prioridad, p.contextFile]), [["mi-web", "alta", "AGENTS.md"]]);
 
-    // Contexto breve: sin el archivo de contexto salvo que se pida
-    const ctx = JSON.parse(await llamar("get_project_context", { project: "mi" }));
-    assert.equal(ctx.avisos[0].codigo, "cambios_sin_commit"); // el repo de prueba tiene archivos sin commit
-    assert.deepEqual(ctx.siguientesPasos, ["Publicar la web en Vercel"]);
-    assert.deepEqual(ctx.ultimaSesion, { fecha: "2026-11-08", puntos: ["Filtro por país.", "Arreglado el mapa."] });
-    assert.equal(ctx.contextMd, undefined);
-    assert.match(JSON.parse(await llamar("get_project_context", { project: "mi", contexto: true })).contextMd, /npm run dev/);
+    // Contexto breve, en texto: sin el archivo de contexto salvo que se pida
+    const ctx = await llamar("get_project_context", { project: "mi" });
+    assert.match(ctx, /^ProjectHub: mi-web · rama \w+ · 2 sin commit · prioridad alta/);
+    assert.match(ctx, /\nAvisos \(atiende el primero antes que nada\):\n- \[medio\] 2 archivos sin commit\./); // el repo de prueba tiene archivos sin commit
+    assert.match(ctx, /\nSiguientes pasos:\n- Publicar la web en Vercel\n/);
+    assert.match(ctx, /\nÚltima sesión \(2026-11-08\):\n- Filtro por país\.\n- Arreglado el mapa\./);
+    assert.ok(!ctx.includes("npm run dev"));
+    assert.match(await llamar("get_project_context", { project: "mi", contexto: true }), /--- AGENTS\.md ---[\s\S]*npm run dev/);
     assert.match(JSON.parse(await llamar("get_project_context", { project: "mi", detalle: "completo" })).statusMd, /## Decisiones/);
+    assert.match(await llamar("get_project_context", { project: "mi", detalle: "git" }), /^mi-web · rama \w+ · 2 sin commit\nSin commit:\n\?\? (AGENTS|STATUS)\.md/);
 
     // Relevo: lo recibe el siguiente chat y se borra al cerrar la sesión
-    const guardado = JSON.parse(await llamar("save_handoff", { project: "mi", haciendo: "Migrando el login a sesiones", siguiente: "Mandar la cookie desde el formulario" }));
-    assert.match(guardado.aviso, /solo están en este equipo/);
-    const conRelevo = JSON.parse(await llamar("get_project_context", { project: "mi" }));
-    assert.equal(conRelevo.avisos[0].codigo, "relevo_pendiente");
-    assert.match(conRelevo.relevo, /## Haciendo\nMigrando el login[\s\S]*## Siguiente\nMandar la cookie[\s\S]*STATUS\.md/);
-    const cierre = JSON.parse(await llamar("update_status", { project: "mi", sesion: ["Login con sesiones terminado."] }));
-    assert.equal(cierre.cambios.relevoBorrado, true);
-    assert.equal(JSON.parse(await llamar("get_project_context", { project: "mi" })).relevo, undefined);
+    assert.match(await llamar("save_handoff", { project: "mi", haciendo: "Migrando el login a sesiones", siguiente: "Mandar la cookie desde el formulario" }), /^Relevo guardado en .*relevo\.md\. [\s\S]*2 archivos sin commit/);
+    const conRelevo = await llamar("get_project_context", { project: "mi" });
+    assert.match(conRelevo, /\nAvisos \(atiende el primero antes que nada\):\n- \[alto\] Hay un relevo/);
+    assert.match(conRelevo, /\nRelevo de un chat anterior:\n# Relevo[\s\S]*## Haciendo\nMigrando el login[\s\S]*## Siguiente\nMandar la cookie/);
+    assert.match(conRelevo, /\nÚltima sesión anotada: 2026-11-08\./);
+    const cierre = await llamar("update_status", { project: "mi", sesion: ["Login con sesiones terminado."], nuevos_pasos: ["Probar el login en móvil"], completados: ["nada que encaje"] });
+    assert.match(cierre, /^STATUS\.md de mi-web guardado: sesión \d{4}-\d{2}-\d{2}, 1 paso añadido\. Quedan 2 pasos\.\nNo encontrados \(no se han quitado; repite con otro fragmento\): nada que encaje\nRelevo borrado\.\nGit: /);
+    assert.ok(!(await llamar("get_project_context", { project: "mi" })).includes("Relevo de un chat"));
+
+    // Prioridad y descripción se cambian con update_status, sin tocar la ficha
+    assert.equal(await llamar("update_status", { project: "mi", prioridad: "baja" }), "Hub: mi-web con prioridad baja.");
+    assert.match(await llamar("list_projects", { actualizar: false }), /mi-web \| baja \|/);
 
     assert.match(await llamar("get_project_map", { project: "mi" }), /^Mapa de mi-web/);
-    assert.match(await llamar("search_notes", { query: "login sesiones" }), /^## mi-web \(1\)\n- Sesión \d{4}-\d{2}-\d{2}: Login con sesiones terminado\.$/);
-    assert.match(await llamar("search_notes", { query: "kubernetes" }), /^Nada anotado/);
+    assert.match(await llamar("get_project_map", { project: "mi", path: "" }), /^\d+ archivos:\n[\s\S]*STATUS\.md/);
+    assert.match(await llamar("search", { query: "login sesiones" }), /^## mi-web \(1\)\n- Sesión \d{4}-\d{2}-\d{2}: Login con sesiones terminado\.$/);
+    assert.match(await llamar("search", { query: "kubernetes" }), /^Nada anotado[\s\S]*en="codigo"/);
+    assert.match(await llamar("search", { query: "npm run dev", en: "codigo" }), /^## mi-web \(1\)\nAGENTS\.md:\d+:npm run dev$/);
     const mal = await client.callTool({ name: "get_project_context", arguments: { project: "no-existe" } });
     assert.ok(mal.isError);
   } finally {
